@@ -9,7 +9,10 @@
 ## 파일 구조
 
 - `index.html` — 게임 전체 (HTML + CSS + JS 한 파일, 외부 의존성은 Google Fonts뿐)
+- `manifest.json`, `sw.js`, `icons/` — PWA(홈 화면 설치·오프라인 실행). 서비스 워커는 같은 사이트 파일을 **네트워크 우선**으로 받으므로 `index.html`만 고쳐 push해도 바로 반영된다. 캐시 구조를 바꿀 때만 `sw.js`의 `VERSION`을 올린다.
+- 아이콘은 `sharkSVG(1,'ok')`(성장기 상어)를 바다 배경에 그려 만든 PNG다. 상어 디자인을 바꾸면 아이콘도 다시 생성한다.
 - 빌드 단계 없음. 파일을 고쳐서 push하면 1~2분 뒤 배포 주소에 반영된다.
+- 브랜드명을 바꿀 때는 `DEFAULTS.brandName` 외에 `index.html`의 `<title>`·`apple-mobile-web-app-title`, `manifest.json`의 `name`/`short_name`도 함께 바꾼다.
 
 ## 작업 방식 (사용자와 합의된 규칙)
 
@@ -47,9 +50,9 @@
 
 ## 다음 단계 후보
 
-1. PWA화: `manifest.json` + 서비스 워커 + 아이콘 → 홈 화면 앱처럼 실행
+1. ~~PWA화~~ (완료)
 2. 공유 랭킹용 API 서버 (사용자는 Laravel/MySQL에 익숙). 서버 권위 모델: 클라이언트는 행동만 보내고 정산·확률 판정·사망·랭킹은 서버에서
-3. 스토어 앱: Flutter WebView 또는 TWA로 감싸기 (iOS는 웹 래퍼 반려 위험 있음)
+3. 스토어 앱: **Flutter WebView로 결정**. 래퍼 앱 프로젝트는 `flutter_app/` (iOS는 웹 래퍼 반려 위험 있음)
 
 ## 보안 원칙
 

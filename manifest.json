@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "부캉이 키우기",
+  "short_name": "부캉이",
+  "description": "아기 상어를 돌보고 몸길이로 경쟁하는 엔딩 없는 육성 게임",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e7f6fd",
+  "theme_color": "#1b8fd6",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
