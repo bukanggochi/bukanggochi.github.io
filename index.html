@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b8fd6">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px system-ui,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>부캉이 키우기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: one-screen phone app — header stats, tank, stat bars + 4 care buttons, bottom tab bar. Single bright-sea look by choice. */
+:root{
+  --sea-top:#5fd0f5; --sea-deep:#1b8fd6; --sand:#f6e3b4;
+  --ink:#0d3557; --ink-soft:#4f7393; --card:#ffffff; --line:#d6ecf8;
+  --page:#e7f6fd; --accent:#ff7a59; --good:#2bb673; --warn:#f2a20c; --bad:#e2463d;
+  --sat:#ff9a3c; --exe:#2aa6e8; --aff:#ff6f9a;
+  --f-display:"Jua","Gowun Dodum",system-ui,sans-serif;
+  --f-body:"Gowun Dodum",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--page);color:var(--ink);font-family:var(--f-body);font-size:15px;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.app{height:100%;max-width:460px;margin:0 auto;display:flex;flex-direction:column;background:var(--page)}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.view{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.num{font-variant-numeric:tabular-nums}
+
+/* header */
+.hud{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-block:14px 10px}
+.hud .name{font-family:var(--f-display);font-size:20px;line-height:1.1}
+.hud .meta{font-size:13px;color:var(--ink-soft);margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12px}
+.len{text-align:right}
+.len b{font-family:var(--f-display);font-size:38px;line-height:1;font-weight:400}
+.len span{font-family:var(--f-display);font-size:18px;margin-left:2px}
+.len small{display:block;font-size:12px;color:var(--ink-soft)}
+
+/* tank */
+.tank{position:relative;flex:none;height:clamp(220px,36vh,310px);margin-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));border-radius:22px;overflow:hidden;
+  background:linear-gradient(180deg,var(--sea-top) 0%,var(--sea-deep) 100%)}
+.tank::after{content:"";position:absolute;left:0;right:0;bottom:0;height:30px;background:var(--sand);border-top:3px solid #ead39a}
+.ray{position:absolute;top:-20px;width:60px;height:140%;background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0));transform:rotate(18deg);filter:blur(2px)}
+.bubble{position:absolute;bottom:20px;border-radius:50%;border:2px solid rgba(255,255,255,.7);animation:rise linear infinite}
+@keyframes rise{from{transform:translateY(0);opacity:.9}to{transform:translateY(-300px);opacity:0}}
+.weed{position:absolute;bottom:22px;width:10px;border-radius:10px 10px 0 0;background:#2f9e6a;transform-origin:bottom;animation:sway 4s ease-in-out infinite alternate;z-index:1}
+@keyframes sway{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+.shark-wrap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;transition:filter .4s}
+.shark{display:block;animation:bob 3s ease-in-out infinite;transform-origin:center}
+@keyframes bob{0%,100%{translate:0 0}50%{translate:0 -8px}}
+.shark-wrap.chomp .shark{animation:chomp .5s ease 2}
+@keyframes chomp{50%{transform:scale(1.08,0.94)}}
+.shark-wrap.dash .shark{animation:dash 1.4s ease-in-out}
+@keyframes dash{0%{translate:0 0}30%{translate:110px -10px}31%{translate:110px -10px;transform:scaleX(-1)}65%{translate:-110px 4px;transform:scaleX(-1)}66%{transform:scaleX(1)}100%{translate:0 0}}
+.shark-wrap.wiggle .shark{animation:wiggle .6s ease 2}
+@keyframes wiggle{25%{rotate:-6deg}75%{rotate:6deg}}
+.shark-wrap.hurt .shark{animation:hurt .12s linear 6}
+.shark-wrap.hurt{filter:drop-shadow(0 0 10px rgba(226,70,61,.9)) saturate(1.2)}
+@keyframes hurt{25%{translate:-5px 0}75%{translate:5px 0}}
+.shark-wrap.sad{filter:saturate(.45) brightness(.92)}
+.poop{position:absolute;bottom:18px;font-size:22px;z-index:2;animation:plop .4s ease}
+@keyframes plop{from{transform:translateY(-30px);opacity:0}}
+.say{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:5;background:var(--card);padding:6px 12px;border-radius:14px;font-size:14px;max-width:calc(100% - 100px);text-align:center;box-shadow:0 3px 0 rgba(13,53,87,.15);transition:opacity .3s}
+.toast{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:6;background:var(--bad);color:#fff;font-family:var(--f-display);font-size:14px;padding:6px 14px;border-radius:999px;white-space:nowrap;transition:opacity .3s,translate .3s}
+.toast[hidden]{display:block!important;opacity:0;translate:0 10px;pointer-events:none}
+.fx{position:absolute;z-index:6;pointer-events:none;font-size:22px;animation:float 1.2s ease-out forwards}
+@keyframes float{to{transform:translateY(-70px) scale(1.3);opacity:0}}
+.pellet{position:absolute;top:0;width:10px;height:10px;border-radius:50%;background:#b4652a;z-index:4;animation:drop 1s ease-in forwards}
+@keyframes drop{to{transform:translateY(120px);opacity:.3}}
+.stage-tag{position:absolute;right:10px;bottom:38px;z-index:5;font-family:var(--f-display);font-size:12px;color:#fff;background:rgba(13,53,87,.35);padding:3px 10px;border-radius:999px}
+
+/* stats */
+.stats{display:grid;gap:9px;padding-block:14px 6px}
+.stat{display:grid;grid-template-columns:62px 1fr 64px;align-items:center;gap:10px}
+.stat .lbl{font-family:var(--f-display);font-size:15px}
+.bar{height:14px;border-radius:999px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;transition:width .5s}
+.stat .val{font-size:13px;text-align:right;white-space:nowrap}
+.stat .val.low{color:var(--bad);font-weight:700}
+.alert{margin-top:6px;padding:8px 12px;border-radius:12px;background:#fff3e6;border:1px solid #ffd3a3;font-size:13px}
+.alert.bad{background:#ffe9e7;border-color:#f7b4ae}
+
+/* actions */
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding-block:10px 12px}
+.act{position:relative;overflow:hidden;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:10px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;box-shadow:0 4px 0 var(--line);transition:transform .08s}
+.act:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 var(--line)}
+.act .ic{font-size:26px;line-height:1}
+.act .t{font-family:var(--f-display);font-size:14px}
+.act .cd{font-size:11px;color:var(--ink-soft);min-height:14px}
+.act:disabled{opacity:.6;cursor:default}
+.act .fill{position:absolute;left:0;bottom:0;height:4px;background:var(--exe)}
+.ad{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:1px dashed #9fcfee;border-radius:14px;padding:9px 12px;font-size:13px;margin-bottom:10px}
+.ad button{background:var(--ink);color:#fff;border-radius:10px;padding:6px 10px;font-size:12px;white-space:nowrap}
+.ad button:disabled{opacity:.4}
+details.dev{margin-bottom:12px;font-size:13px;color:var(--ink-soft)}
+details.dev summary{cursor:pointer;padding:4px 0}
+.devrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.btn-s{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:6px 10px;font-size:12px}
+
+/* tabs */
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);background:var(--card);padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.tabs button{padding:10px 0 8px;font-family:var(--f-display);font-size:13px;color:var(--ink-soft);display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs button .ic{font-size:20px}
+.tabs button[aria-selected="true"]{color:var(--sea-deep)}
+
+/* ranking */
+h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:16px 0 4px}
+.sub{color:var(--ink-soft);font-size:13px;margin:0 0 12px;line-height:1.5}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--line);border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{padding:8px;border-radius:9px;font-family:var(--f-display)}
+.seg button[aria-pressed="true"]{background:var(--card);box-shadow:0 2px 0 rgba(13,53,87,.08)}
+.rk{list-style:none;margin:0 0 16px;padding:0;display:grid;gap:6px}
+.rk li{display:grid;grid-template-columns:38px 26px minmax(0,1fr) auto;align-items:center;gap:8px;background:var(--card);border-radius:12px;padding:8px 12px}
+.rk li.me{background:#fff5d6;border:2px solid #ffd36b}
+.rk .pos{font-family:var(--f-display);font-size:18px;text-align:center}
+.rk .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk .nm small{display:block;color:var(--ink-soft);font-size:11px}
+.rk .cm{font-family:var(--f-display);font-size:17px}
+.rk .gap{display:block;text-align:center;color:var(--ink-soft);font-size:12px;background:none;padding:0}
+
+/* records */
+.card{background:var(--card);border-radius:16px;padding:14px;margin-bottom:10px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kv div small{display:block;color:var(--ink-soft);font-size:12px}
+.kv div b{font-family:var(--f-display);font-weight:400;font-size:22px}
+.grave{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.grave:first-of-type{border-top:0}
+.grave .stone{font-size:26px}
+.note{font-size:12px;color:var(--ink-soft);line-height:1.6}
+
+/* overlays */
+.overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(13,53,87,.55);
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet{background:var(--card);border-radius:24px;padding:22px 20px;width:100%;max-width:380px;text-align:center}
+.sheet h3{font-family:var(--f-display);font-weight:400;font-size:26px;margin:6px 0}
+.sheet p{color:var(--ink-soft);margin:6px 0 14px;line-height:1.55}
+.sheet input{width:100%;font:inherit;font-size:17px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);text-align:center;margin-bottom:12px}
+.sheet input:focus{outline:none;border-color:var(--sea-deep)}
+.big{width:100%;background:var(--accent);color:#fff;font-family:var(--f-display);font-size:19px;padding:13px;border-radius:16px;box-shadow:0 4px 0 #d95a3c}
+.big:active{transform:translateY(3px);box-shadow:0 1px 0 #d95a3c}
+.err{color:var(--bad);font-size:13px;min-height:18px;margin:-6px 0 8px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="app" id="app">
+  <!-- ========== 육성 ========== -->
+  <div class="view" id="v-care">
+    <div class="hud gut">
+      <div>
+        <div class="name" id="sName">-</div>
+        <div class="meta"><span class="chip num" id="sDays">생존 0일</span><span class="chip num" id="sRank">현재 -위</span></div>
+      </div>
+      <div class="len num"><b id="sLen">30.0</b><span>cm</span><small id="sGrow">성장 중</small></div>
+    </div>
+    <div class="tank" id="tank">
+      <div class="ray" style="left:12%"></div><div class="ray" style="left:58%;width:40px"></div>
+      <div class="weed" style="left:8%;height:46px"></div><div class="weed" style="left:12%;height:30px;animation-delay:-1s"></div>
+      <div class="weed" style="right:10%;height:54px;animation-delay:-2s"></div>
+      <div class="stage-tag" id="sStage">아기</div>
+      <div class="say" id="say">안녕! 나 배고파요</div>
+      <div class="toast" id="toast" hidden></div>
+      <div class="shark-wrap" id="sharkWrap"></div>
+    </div>
+    <div class="gut">
+      <div class="stats" id="stats"></div>
+      <div id="alertBox"></div>
+      <div class="actions" id="actions"></div>
+      <div class="ad"><span>📺 광고 보고 먹이 한 그릇 <span class="num" id="adLeft">(오늘 3/3)</span><br><small style="color:var(--ink-soft)">배부름만 채워져요. 성장 배수는 없어요.</small></span><button id="adBtn">광고 보기</button></div>
+      <details class="dev"><summary>테스트 도구: 시간 빨리 감기</summary>
+        <div class="devrow">
+          <button class="btn-s" data-skip="1">+1시간</button><button class="btn-s" data-skip="6">+6시간</button><button class="btn-s" data-skip="12">+12시간</button><button class="btn-s" data-skip="24">+24시간</button><button class="btn-s" id="resetAll">게임 전체 초기화</button>
+        </div>
+        <p class="note">실서비스에서는 서버 시각으로만 정산합니다. 방치·사망 규칙을 시험해 보기 위한 프로토타입 전용 기능이에요.</p>
+      </details>
+    </div>
+  </div>
+
+  <!-- ========== 랭킹 ========== -->
+  <div class="view gut" id="v-rank" hidden>
+    <h2>랭킹</h2>
+    <p class="sub num" id="rkTime">-</p>
+    <div class="seg" role="group"><button id="rkAlive" aria-pressed="true">현재 생존</button><button id="rkAll" aria-pressed="false">역대 최고</button></div>
+    <ol class="rk" id="rkList"></ol>
+    <p class="note">같은 몸길이(소수 첫째 자리 기준)는 같은 순위로 표시해요. 다른 상어들은 프로토타입용 예시 데이터입니다.</p>
+  </div>
+
+  <!-- ========== 기록 ========== -->
+  <div class="view gut" id="v-rec" hidden>
+    <h2>내 기록</h2>
+    <p class="sub">살았던 모든 상어가 여기 남아요.</p>
+    <div class="card kv" id="recSummary"></div>
+    <div class="card" id="graves"></div>
+    <div class="card note" id="howto"></div>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="care"><span class="ic">🦈</span>육성</button>
+    <button role="tab" aria-selected="false" data-tab="rank"><span class="ic">🏆</span>랭킹</button>
+    <button role="tab" aria-selected="false" data-tab="rec"><span class="ic">📒</span>기록</button>
+  </nav>
+</div>
+
+<div class="overlay" id="ovStart" hidden>
+  <div class="sheet">
+    <div id="startShark"></div>
+    <h3 id="startTitle">새 아기 상어가 왔어요</h3>
+    <p>이름을 지어 주세요. 엔딩은 없어요. 오래, 크게 키울수록 랭킹이 올라가요.</p>
+    <input id="nickIn" maxlength="10" placeholder="예: 통통이" autocomplete="off">
+    <div class="err" id="nickErr"></div>
+    <button class="big" id="startBtn">키우기 시작</button>
+  </div>
+</div>
+
+<div class="overlay" id="ovDeath" hidden>
+  <div class="sheet">
+    <div style="font-size:54px">🪦</div>
+    <h3 id="dTitle">-</h3>
+    <p id="dReason">-</p>
+    <div class="kv" style="text-align:left;margin-bottom:16px" id="dStats"></div>
+    <button class="big" id="againBtn">새 아기 상어 받기</button>
+  </div>
+</div>
+
+<div class="overlay" id="ovAd" hidden>
+  <div class="sheet">
+    <h3>광고 재생 중</h3>
+    <p>프로토타입이라 실제 광고 대신 3초 대기로 대신해요.<br>완료 후 서버가 시청을 확인해야 보상이 지급되는 구조예요.</p>
+    <div class="bar" style="height:10px"><i id="adBar" style="width:0;background:var(--exe)"></i></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   게임 설정값 — 배포된 이 값만 사용한다.
+   밸런스를 바꾸려면 여기 숫자를 고쳐서 다시 배포하면 모든 플레이어에게 적용된다.
+   ========================================================= */
+const DEFAULTS = {
+  brandName: '부캉이 키우기',
+  startLen: 30, maxDailyGrowth: 3, sizeDamp: 250, noGrowthBelowSatiety: 10,
+  decayPerH: { satiety: 4.2, exercise: 3.4, affection: 3.0 },
+  poopEveryH: 3, poopMax: 5, poopAffDecay: 0.6, poopGrowthPenaltyPct: 8,
+  starveDeathH: 24, allZeroDeathH: 8, stepMin: 10, maxSettleDays: 14,
+  actions: {
+    feed:  { cdMin: 30, gain: 30 },
+    swim:  { cdMin: 45, gain: 25, satietyCost: 6 },
+    pet:   { cdMin: 3,  gain: 12, perHourCap: 6 },
+    clean: { cdMin: 0,  affPerPoop: 5 }
+  },
+  // 악효과: chance(%) 확률로 발생, 각 스탯 감소치(점), keepGain=정상 효과도 함께 적용할지
+  effects: {
+    feed: { name: '배탈',   chance: 8,  satiety: 15, exercise: 0,  affection: 5,  keepGain: false },
+    swim: { name: '타박상', chance: 10, satiety: 0,  exercise: 15, affection: 5,  keepGain: false },
+    pet:  { name: '손물림', chance: 6,  satiety: 0,  exercise: 0,  affection: 20, keepGain: false }
+  },
+  adDaily: 3, adSatiety: 20,
+  stages: [ [0,'아기'], [100,'성장기'], [200,'대형'], [300,'거대'] ]
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+const getP = (o,p) => p.split('.').reduce((a,k)=>a&&a[k], o);
+
+/* ===== 예시 경쟁자 ===== */
+function makeRivals(seed=7){
+  const names=['바다방울','해초빵','꼬마돌','파랑이','몽글상어','지느러미킹','두부','물결','통조림','소금빵','은빛','작은파도','모래알','동글','짭짤이','해파리친구','코랄','펭덕','심해왕','노을'];
+  const r=()=>((seed=seed*16807%2147483647)/2147483647);
+  return names.map((n,i)=>{ const base=30+r()*170; return { id:'r'+i+'-'+seed%1000, name:n, base, rate:r()*0.11, days:Math.floor(r()*80), alive:r()>0.25, best:base+40+r()*120 }; });
+}
+
+/* ===== 저장소 (실서비스에서는 서버 DB) ===== */
+const KEY='bukangi-proto-v2';
+let mem=null;
+function load(){ try{ const r=localStorage.getItem(KEY); if(r) return JSON.parse(r);}catch(e){} return mem; }
+function save(){ mem=S; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function fresh(){ return { offsetMs:0, epoch:Date.now(), shark:null, graves:[], bestLen:0, bestName:'', ads:{day:'',used:0}, rivals:makeRivals() }; }
+
+let S = load() || fresh();
+const CFG = clone(DEFAULTS);   // 브라우저에 남아 있는 옛 관리자 설정(S.cfg)은 읽지 않음
+delete S.cfg;
+const now = () => Date.now() + S.offsetMs;
+
+/* ===== 서버 권위 로직: 정산 ===== */
+const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
+function stageOf(len){ let i=0; CFG.stages.forEach((s,k)=>{ if(len>=s[0]) i=k; }); return i; }
+function efficiency(sh){
+  const st=[sh.satiety,sh.exercise,sh.affection];
+  const avg=(st[0]+st[1]+st[2])/3, mn=Math.min(...st);
+  if(sh.satiety<CFG.noGrowthBelowSatiety) return 0;
+  let e=(0.2+0.8*avg/100)*(0.5+0.5*mn/100);
+  return e*Math.max(0,1-CFG.poopGrowthPenaltyPct/100*sh.poop);
+}
+const growthPerDay = sh => CFG.maxDailyGrowth*efficiency(sh)/(1+Math.max(0,sh.len-CFG.startLen)/CFG.sizeDamp);
+function settle(){
+  const sh=S.shark; if(!sh||!sh.alive) return;
+  const t=now(); const step=CFG.stepMin*6e4;
+  let from=Math.max(sh.lastSim, t-CFG.maxSettleDays*864e5);
+  while(from+step<=t && sh.alive){ tick(sh,CFG.stepMin/60,from+step); from+=step; }
+  const rest=(t-from)/36e5; if(rest>0&&sh.alive) tick(sh,rest,t);
+  sh.lastSim=t; bumpBest(sh); save();
+}
+function bumpBest(sh){ if(sh.len>S.bestLen){ S.bestLen=sh.len; S.bestName=sh.name; S.bestDays=daysAlive(sh); } }
+function tick(sh,h,at){
+  const d=CFG.decayPerH;
+  sh.len += growthPerDay(sh)/24*h;
+  sh.satiety=clamp(sh.satiety-d.satiety*h);
+  sh.exercise=clamp(sh.exercise-d.exercise*h);
+  sh.affection=clamp(sh.affection-(d.affection+CFG.poopAffDecay*sh.poop)*h);
+  sh.poopT+=h;
+  while(sh.poopT>=CFG.poopEveryH){ sh.poopT-=CFG.poopEveryH; if(sh.poop<CFG.poopMax&&sh.satiety>5) sh.poop++; }
+  sh.starveH = sh.satiety<=0 ? sh.starveH+h : Math.max(0,sh.starveH-h*2);
+  sh.zeroH = (sh.satiety<=0&&sh.exercise<=0&&sh.affection<=0) ? sh.zeroH+h : 0;
+  if(sh.starveH>=CFG.starveDeathH) die(sh,at,'배고픔을 너무 오래 참았어요');
+  else if(sh.zeroH>=CFG.allZeroDeathH) die(sh,at,'오랫동안 아무도 돌봐주지 않았어요');
+}
+function die(sh,at,reason){
+  sh.alive=false; sh.diedAt=at; sh.reason=reason; bumpBest(sh);
+  S.graves.unshift({ name:sh.name, len:sh.len, days:daysAlive(sh,at), reason, diedAt:at });
+}
+const daysAlive=(sh,t=now())=>Math.floor(((sh.alive?t:sh.diedAt)-sh.born)/864e5);
+
+/* ===== 행동 API (실서비스: POST /api/shark/actions — 확률 판정도 서버에서) ===== */
+const EFFECT_UI = {
+  feed: { icon:'🤢', msgs:['꾸르륵… 배탈이 났어요','먹자마자 배가 아파요…'] },
+  swim: { icon:'🩹', msgs:['쿵! 바위에 부딪혀 타박상을 입었어요','아야, 지느러미를 부딪혔어요'] },
+  pet:  { icon:'🦷', msgs:['앗, 손을 덥석 물었어요! 미안해요…','깜짝 놀라서 깨물어 버렸어요'] }
+};
+const STAT_NAME={satiety:'배부름',exercise:'운동',affection:'애정'};
+function cdLeft(a){ const sh=S.shark; const last=sh.cd[a]||0; return Math.max(0,last+CFG.actions[a].cdMin*6e4-now()); }
+function act(a){
+  settle(); const sh=S.shark; if(!sh.alive) return render();
+  if(cdLeft(a)>0) return;
+  const A=CFG.actions[a], E=CFG.effects[a], t=now();
+  let ok=false, msg='', fx='', cls='';
+  if(a==='feed'){
+    if(sh.satiety>=95) msg='배불러서 더 못 먹어요';
+    else { ok=true; dropPellets(); }
+  } else if(a==='swim'){
+    if(sh.satiety<A.satietyCost+2) msg='배고파서 헤엄칠 힘이 없어요';
+    else ok=true;
+  } else if(a==='pet'){
+    sh.pets=(sh.pets||[]).filter(x=>t-x<36e5);
+    if(sh.pets.length>=A.perHourCap) msg='지금은 조금 쉬고 싶어요';
+    else ok=true;
+  } else if(a==='clean'){
+    if(sh.poop===0) msg='깨끗해요!';
+    else { sh.affection=clamp(sh.affection+A.affPerPoop*sh.poop); msg=`${sh.poop}개 치웠어요. 상쾌해요!`; sh.poop=0; fx='✨'; sh.lastCare=t; }
+  }
+  if(ok){
+    const bad = E && E.chance>0 && Math.random()*100 < E.chance;
+    sh.cd[a]=t; sh.lastCare=t;
+    if(!bad || E.keepGain){
+      if(a==='feed'){ sh.satiety=clamp(sh.satiety+A.gain); msg=pick(['냠냠! 맛있어요','오물오물…','최고의 정어리!']); fx='🐟'; cls='chomp'; }
+      if(a==='swim'){ sh.exercise=clamp(sh.exercise+A.gain); sh.satiety=clamp(sh.satiety-A.satietyCost); msg=pick(['슝— 한 바퀴!','지느러미 운동 완료','더 빨라진 것 같아요']); fx='💨'; cls='dash'; }
+      if(a==='pet'){ const n=sh.pets.length; sh.affection=clamp(sh.affection+A.gain*Math.pow(0.7,n)); msg=n<2?pick(['헤헤, 간지러워요','좋아요!','더 쓰다듬어 줘요']):'고마워요 (조금 덜 신나요)'; fx='💗'; cls='wiggle'; }
+    }
+    if(a==='pet') sh.pets.push(t);
+    if(bad){
+      const drops=[];
+      ['satiety','exercise','affection'].forEach(k=>{ const v=+E[k]||0; if(v>0){ sh[k]=clamp(sh[k]-v); drops.push(`${STAT_NAME[k]} -${v}`); } });
+      msg=pick(EFFECT_UI[a].msgs); fx=EFFECT_UI[a].icon; cls='hurt';
+      toast(`${E.name}! ${drops.join(' · ')||'스탯 변화 없음'}`);
+    }
+  }
+  if(cls) anim(cls); if(fx) burst(fx);
+  say(msg); save(); render();
+}
+const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+
+/* ===== 랭킹 ===== */
+function rivalLen(x){ return x.alive ? x.base + x.rate*((now()-S.epoch)/36e5) : x.base; }
+const rivalDays = x => x.days + (x.alive?Math.floor((now()-S.epoch)/864e5):0);
+function rankAlive(){
+  const rows=S.rivals.filter(x=>x.alive).map(x=>({id:x.id,name:x.name,len:rivalLen(x),days:rivalDays(x)}));
+  if(S.shark&&S.shark.alive&&!S.shark.rankOff) rows.push({id:'me',name:S.shark.name,len:S.shark.len,days:daysAlive(S.shark),me:true});
+  return withPos(rows);
+}
+function rankAll(){
+  const rows=S.rivals.map(x=>({id:x.id,name:x.name,len:Math.max(x.best,rivalLen(x)),days:rivalDays(x)}));
+  if(S.bestLen>0) rows.push({id:'me',name:S.bestName||'-',len:S.bestLen,days:S.bestDays||0,me:true});
+  return withPos(rows);
+}
+function withPos(rows){
+  rows.sort((a,b)=>b.len-a.len); let prev=null,pos=0;
+  rows.forEach((r,i)=>{ const k=r.len.toFixed(1); if(k!==prev){pos=i+1;prev=k;} r.pos=pos; });
+  return rows;
+}
+
+/* ===== 상어 그림 (독창 디자인) ===== */
+function sharkSVG(stage,mood,size){
+  const body=['#7fc4ea','#6ab3e0','#5aa0d4','#4a8cc4'][stage], belly='#f3fbff';
+  const eye = mood==='sad' ? '<path d="M118 52 q6 5 12 0" stroke="#0d3557" stroke-width="3" fill="none" stroke-linecap="round"/>'
+    : '<circle cx="124" cy="52" r="7" fill="#0d3557"/><circle cx="126.5" cy="49.5" r="2.4" fill="#fff"/>';
+  const mouth = mood==='sad' ? '<path d="M128 74 q8 -5 16 0" stroke="#0d3557" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
+    : '<path d="M128 70 q8 7 16 0" stroke="#0d3557" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
+  const stripes = stage>=2 ? `<path d="M70 38 q6 14 0 28 M84 34 q6 16 0 32" stroke="${belly}" stroke-opacity=".45" stroke-width="5" fill="none" stroke-linecap="round"/>`:'';
+  const star = stage>=3 ? `<path d="M96 6 l5 10 11 1 -8 7 3 11 -11 -6 -10 6 3 -11 -8 -7 11 -1z" fill="#ffd36b" stroke="#e8a92a" stroke-width="2"/>`:'';
+  return `<svg class="shark" width="${size}" viewBox="0 0 180 120" role="img" aria-label="상어">${star}
+    <path d="M30 60 L6 34 Q4 60 6 86 Z" fill="${body}"/>
+    <path d="M86 30 Q92 ${stage>=1?8:16} 108 28 Z" fill="${body}"/>
+    <ellipse cx="96" cy="62" rx="68" ry="${36+stage*2}" fill="${body}"/>
+    <path d="M40 70 Q96 ${108+stage*2} 160 66 Q130 92 96 94 Q60 94 40 70Z" fill="${belly}"/>
+    <path d="M84 84 Q74 104 92 98 Z" fill="${body}"/>${stripes}
+    <path d="M104 52 v14 M110 52 v14" stroke="${belly}" stroke-opacity=".5" stroke-width="2.4" stroke-linecap="round"/>
+    ${eye}${mouth}<ellipse cx="140" cy="64" rx="7" ry="4" fill="#ff9fb5" opacity=".75"/></svg>`;
+}
+
+/* ===== 게임 UI ===== */
+const $=id=>document.getElementById(id);
+const STATS=[['satiety','배부름','--sat'],['exercise','운동','--exe'],['affection','애정','--aff']];
+const ACTS=[['feed','🐟','먹이'],['swim','🌊','수영'],['clean','🧽','청소'],['pet','🤲','쓰다듬기']];
+let rkTab='alive', admTab='alive', curTab='care';
+
+$('stats').innerHTML=STATS.map(([k,l,c])=>`<div class="stat"><span class="lbl">${l}</span><div class="bar" role="progressbar" aria-label="${l}" aria-valuemin="0" aria-valuemax="100" id="b-${k}"><i style="background:var(${c})"></i></div><span class="val num" id="v-${k}"></span></div>`).join('');
+$('actions').innerHTML=ACTS.map(([k,i,t])=>`<button class="act" id="a-${k}"><span class="ic">${i}</span><span class="t">${t}</span><span class="cd num"></span><span class="fill"></span></button>`).join('');
+ACTS.forEach(([k])=>$('a-'+k).onclick=()=>act(k));
+
+let lastStage=-1,lastMood='';
+function render(){
+  const sh=S.shark;
+  if(curTab==='rank') renderRank(); if(curTab==='rec') renderRec();
+  if(!sh) return;
+  $('sName').textContent=sh.name;
+  $('sLen').textContent=sh.len.toFixed(1);
+  $('sDays').textContent=`생존 ${daysAlive(sh)}일`;
+  const me=rankAlive().find(r=>r.me);
+  $('sRank').textContent=me?`현재 ${me.pos}위`:(sh.rankOff?'랭킹 제외됨':'순위 없음');
+  const st=stageOf(sh.len); $('sStage').textContent=CFG.stages[st][1]+' 상어';
+  const g=sh.alive?growthPerDay(sh):0;
+  $('sGrow').textContent= g===0 ? '성장 멈춤' : `하루 약 +${g.toFixed(2)}cm 페이스`;
+  STATS.forEach(([k])=>{ const v=sh[k]; $('b-'+k).firstElementChild.style.width=v+'%'; $('b-'+k).setAttribute('aria-valuenow',Math.round(v));
+    const el=$('v-'+k); el.textContent=(v<25?'⚠ ':'')+Math.round(v); el.className='val num'+(v<25?' low':''); });
+  const mood=(Math.min(sh.satiety,sh.exercise,sh.affection)<20||sh.poop>=3)?'sad':'ok';
+  if(st!==lastStage||mood!==lastMood){
+    $('sharkWrap').innerHTML=sharkSVG(st,mood,Math.round(150+Math.min(st,3)*22));
+    $('sharkWrap').classList.toggle('sad',mood==='sad'); lastStage=st; lastMood=mood;
+  }
+  document.querySelectorAll('.poop').forEach(p=>p.remove());
+  for(let i=0;i<sh.poop;i++){ const p=document.createElement('span'); p.className='poop'; p.textContent='💩'; p.style.left=(18+i*14)+'%'; $('tank').appendChild(p); }
+  const al=[];
+  if(sh.starveH>0) al.push(['bad',`배고픔 한계까지 ${Math.max(0,CFG.starveDeathH-sh.starveH).toFixed(1)}시간 남았어요. 지금 먹이를 주세요!`]);
+  else if(sh.satiety<25) al.push(['',`배가 많이 고파요. 배부름 ${CFG.noGrowthBelowSatiety} 아래로 떨어지면 성장이 멈춰요.`]);
+  if(sh.poop>=3) al.push(['',`똥이 ${sh.poop}개 쌓였어요. 성장이 ${Math.round(sh.poop*CFG.poopGrowthPenaltyPct)}% 느려지고 있어요.`]);
+  $('alertBox').innerHTML=al.map(([c,t])=>`<div class="alert ${c}">${t}</div>`).join('');
+  ACTS.forEach(([k])=>{ const b=$('a-'+k), left=cdLeft(k), cd=Math.max(1,CFG.actions[k].cdMin*6e4);
+    b.disabled=left>0||!sh.alive; b.querySelector('.cd').textContent= left>0?fmtCd(left):(k==='clean'&&sh.poop?`${sh.poop}개`:'가능');
+    b.querySelector('.fill').style.width= left>0?(100-left/cd*100)+'%':'0'; });
+  const today=new Date(now()).toDateString(); if(S.ads.day!==today) S.ads={day:today,used:0};
+  $('adLeft').textContent=`(오늘 ${Math.max(0,CFG.adDaily-S.ads.used)}/${CFG.adDaily})`; $('adBtn').disabled=S.ads.used>=CFG.adDaily||!sh.alive;
+  if(!sh.alive) showDeath();
+}
+const fmtCd=ms=>{ const m=Math.ceil(ms/6e4); return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`; };
+const medal=p=>p===1?'🥇':p===2?'🥈':p===3?'🥉':p;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function renderRank(){
+  const rows=rkTab==='alive'?rankAlive():rankAll();
+  const meIdx=rows.findIndex(r=>r.me);
+  const show=rows.slice(0,10); if(meIdx>=10) show.push('gap',rows[meIdx]);
+  $('rkList').innerHTML=show.map(r=>r==='gap'?'<li class="gap">⋯</li>':
+    `<li class="${r.me?'me':''}"><span class="pos num">${medal(r.pos)}</span><span>${['🐟','🦈','🦈','👑'][stageOf(r.len)]}</span><span class="nm">${esc(r.name)}${r.me?' (나)':''}<small>${CFG.stages[stageOf(r.len)][1]} · ${r.days}일</small></span><span class="cm num">${r.len.toFixed(1)}cm</span></li>`).join('')
+    || '<li class="gap">아직 등록된 상어가 없어요</li>';
+  if(rkTab==='alive'&&meIdx<0&&S.shark) $('rkList').insertAdjacentHTML('beforeend',`<li class="gap">${S.shark.rankOff?'내 상어는 랭킹에서 제외됐어요':'내 상어는 지금 생존 랭킹에 없어요'}</li>`);
+  const d=new Date(now()); $('rkTime').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} 기준 · 몸길이 순`;
+}
+function renderRec(){
+  const sh=S.shark;
+  $('recSummary').innerHTML=`<div><small>현재 상어</small><b class="num">${sh&&sh.alive?sh.len.toFixed(1)+'cm':'-'}</b></div><div><small>역대 최고</small><b class="num">${S.bestLen.toFixed(1)}cm</b></div>
+    <div><small>키운 상어</small><b class="num">${S.graves.length+(sh&&sh.alive?1:0)}마리</b></div><div><small>최장 생존</small><b class="num">${Math.max(0,...S.graves.map(g=>g.days),sh&&sh.alive?daysAlive(sh):0)}일</b></div>`;
+  $('graves').innerHTML= S.graves.length ? '<b style="font-family:var(--f-display);font-weight:400">추억의 바다</b>'+S.graves.map(g=>`<div class="grave"><span class="stone">🪦</span><div><b>${esc(g.name)}</b> · <span class="num">${g.len.toFixed(1)}cm · ${g.days}일</span><div class="note">${g.reason}</div></div></div>`).join('')
+    : '<p class="note" style="margin:0">아직 떠난 상어가 없어요. 이대로 쭉 지켜 주세요.</p>';
+  const E=CFG.effects;
+  $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
+    가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}이 생겨 스탯이 떨어져요.`;
+}
+
+/* effects */
+let sayT,toastT;
+function say(t){ const el=$('say'); el.textContent=t; el.style.opacity=1; clearTimeout(sayT); sayT=setTimeout(()=>el.style.opacity=0,2600); }
+function toast(t){ const el=$('toast'); el.textContent=t; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true,2600); }
+function anim(c){ const w=$('sharkWrap'); w.classList.remove('chomp','dash','wiggle','hurt'); void w.offsetWidth; w.classList.add(c); setTimeout(()=>w.classList.remove(c),1500); }
+function burst(e){ for(let i=0;i<4;i++){ const f=document.createElement('span'); f.className='fx'; f.textContent=e; f.style.left=(40+Math.random()*20)+'%'; f.style.top=(35+Math.random()*15)+'%'; f.style.animationDelay=(i*.12)+'s'; $('tank').appendChild(f); setTimeout(()=>f.remove(),1700);} }
+function dropPellets(){ for(let i=0;i<5;i++){ const p=document.createElement('span'); p.className='pellet'; p.style.left=(45+Math.random()*14)+'%'; p.style.animationDelay=(i*.1)+'s'; $('tank').appendChild(p); setTimeout(()=>p.remove(),1400);} }
+function bubbles(){ for(let i=0;i<7;i++){ const b=document.createElement('span'); const s=6+Math.random()*10; b.className='bubble'; b.style.cssText=`width:${s}px;height:${s}px;left:${Math.random()*95}%;animation-duration:${5+Math.random()*6}s;animation-delay:${-Math.random()*8}s`; $('tank').appendChild(b);} }
+
+/* flows */
+function newShark(name){
+  const t=now();
+  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, starveH:0, zeroH:0, cd:{}, pets:[], rankOff:false };
+  save(); lastStage=-1; render(); say(`안녕! 나는 ${name}이에요`);
+}
+function showStart(again){
+  $('startShark').innerHTML=sharkSVG(0,'ok',150);
+  $('startTitle').textContent=again?'새 아기 상어가 왔어요':CFG.brandName;
+  $('nickIn').value=''; $('nickErr').textContent=''; $('ovStart').hidden=false; setTimeout(()=>$('nickIn').focus(),50);
+}
+$('startBtn').onclick=()=>{
+  const v=$('nickIn').value.trim();
+  if(v.length<1||v.length>10){ $('nickErr').textContent='이름은 1~10자로 지어 주세요'; return; }
+  if(S.rivals.some(r=>r.name===v)){ $('nickErr').textContent='이미 바다에 같은 이름의 상어가 있어요'; return; }
+  $('ovStart').hidden=true; newShark(v);
+};
+$('nickIn').addEventListener('keydown',e=>{ if(e.key==='Enter') $('startBtn').click(); });
+function showDeath(){
+  const sh=S.shark; if(!$('ovDeath').hidden) return;
+  $('dTitle').textContent=`${sh.name}가 바다로 떠났어요`;
+  $('dReason').textContent=sh.reason+'. 기록은 추억의 바다에 남아요.';
+  $('dStats').innerHTML=`<div><small>최종 길이</small><b class="num">${sh.len.toFixed(1)}cm</b></div><div><small>생존</small><b class="num">${daysAlive(sh)}일</b></div><div><small>개인 최고</small><b class="num">${S.bestLen.toFixed(1)}cm</b></div><div><small>역대 순위</small><b class="num">${rankAll().find(r=>r.me)?.pos??'-'}위</b></div>`;
+  $('ovDeath').hidden=false;
+}
+$('againBtn').onclick=()=>{ $('ovDeath').hidden=true; showStart(true); };
+
+$('adBtn').onclick=()=>{
+  if(S.ads.used>=CFG.adDaily) return;
+  $('ovAd').hidden=false; const bar=$('adBar'); bar.style.transition='none'; bar.style.width='0';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ bar.style.transition='width 3s linear'; bar.style.width='100%'; }));
+  setTimeout(()=>{ $('ovAd').hidden=true; settle(); S.ads.used++; S.shark.satiety=clamp(S.shark.satiety+CFG.adSatiety); save(); burst('🍤'); say('광고 보상 먹이 도착!'); render(); },3050);
+};
+
+document.querySelectorAll('[data-skip]').forEach(b=>b.onclick=()=>{ S.offsetMs+=(+b.dataset.skip)*36e5; settle(); render(); say(`${b.dataset.skip}시간이 흘렀어요`); });
+armButton($('resetAll'),'한 번 더 누르면 초기화',()=>{
+  try{localStorage.removeItem(KEY);}catch(_){}; mem=null; S=fresh();
+  $('ovDeath').hidden=true; showStart(false);
+});
+
+/* 두 번 눌러 확정하는 버튼 */
+function armButton(el,armText,fn){
+  const orig=el.textContent; let t;
+  el.onclick=()=>{ if(!el.classList.contains('arm')){ el.classList.add('arm'); el.textContent=armText; clearTimeout(t); t=setTimeout(()=>{el.classList.remove('arm');el.textContent=orig;},3000); return; }
+    clearTimeout(t); el.classList.remove('arm'); el.textContent=orig; fn(); };
+}
+
+/* tabs */
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  curTab=b.dataset.tab; document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  ['care','rank','rec'].forEach(v=>$('v-'+v).hidden=v!==curTab);
+  settle(); render();
+});
+function seg(a,b,onA,onB){ a.onclick=()=>{a.setAttribute('aria-pressed',true);b.setAttribute('aria-pressed',false);onA();}; b.onclick=()=>{b.setAttribute('aria-pressed',true);a.setAttribute('aria-pressed',false);onB();}; }
+seg($('rkAlive'),$('rkAll'),()=>{rkTab='alive';renderRank();},()=>{rkTab='all';renderRank();});
+
+/* boot */
+bubbles();
+if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); }
+else showStart(false);
+setInterval(()=>{ if(S.shark&&S.shark.alive){ settle(); render(); } },15000);
+setInterval(()=>{ if(S.shark&&S.shark.alive&&curTab==='care'&&ACTS.some(([k])=>cdLeft(k)>0)) render(); },1000);
+</script>
+
+</body>
+</html>
