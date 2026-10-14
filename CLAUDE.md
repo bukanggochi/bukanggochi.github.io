@@ -12,7 +12,8 @@
 - `manifest.json`, `sw.js`, `icons/` — PWA(홈 화면 설치·오프라인 실행). 서비스 워커는 같은 사이트 파일을 **네트워크 우선**으로 받으므로 `index.html`만 고쳐 push해도 바로 반영된다. 캐시 구조를 바꿀 때만 `sw.js`의 `VERSION`을 올린다.
 - 아이콘은 `sharkSVG(1,'ok')`(성장기 상어)를 바다 배경에 그려 만든 PNG다. 상어 디자인을 바꾸면 아이콘도 다시 생성한다.
 - 빌드 단계 없음. 파일을 고쳐서 push하면 1~2분 뒤 배포 주소에 반영된다.
-- 브랜드명을 바꿀 때는 `DEFAULTS.brandName` 외에 `index.html`의 `<title>`·`apple-mobile-web-app-title`, `manifest.json`의 `name`/`short_name`도 함께 바꾼다.
+- `flutter_app/` — 배포 주소를 WebView로 띄우는 Flutter 래퍼 앱(앱 ID `io.github.bukanggochi`). `_config.yml`에서 Pages 배포 대상에서 제외. 처음엔 사용자 PC에서 `dart run tool/setup.dart`로 android/ios 폴더를 만든다(이 작업 환경에서는 Flutter SDK·pub.dev 접근 불가라 빌드 불가). 서명 키(`key.properties`, `*.jks`)는 절대 커밋하지 않는다.
+- 브랜드명을 바꿀 때는 `DEFAULTS.brandName` 외에 `index.html`의 `<title>`·`apple-mobile-web-app-title`, `manifest.json`의 `name`/`short_name`, `flutter_app/lib/config.dart`의 `kAppTitle`, `flutter_app/tool/setup.dart`의 `kDisplayName`도 함께 바꾼다.
 
 ## 작업 방식 (사용자와 합의된 규칙)
 
