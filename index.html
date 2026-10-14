@@ -398,21 +398,41 @@ function withPos(rows){
 
 /* ===== 상어 그림 (독창 디자인) ===== */
 function sharkSVG(stage,mood,size){
-  const body=['#7fc4ea','#6ab3e0','#5aa0d4','#4a8cc4'][stage], belly='#f3fbff';
-  const eye = mood==='sad' ? '<path d="M118 52 q6 5 12 0" stroke="#0d3557" stroke-width="3" fill="none" stroke-linecap="round"/>'
-    : '<circle cx="124" cy="52" r="7" fill="#0d3557"/><circle cx="126.5" cy="49.5" r="2.4" fill="#fff"/>';
-  const mouth = mood==='sad' ? '<path d="M128 74 q8 -5 16 0" stroke="#0d3557" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
-    : '<path d="M128 70 q8 7 16 0" stroke="#0d3557" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
-  const stripes = stage>=2 ? `<path d="M70 38 q6 14 0 28 M84 34 q6 16 0 32" stroke="${belly}" stroke-opacity=".45" stroke-width="5" fill="none" stroke-linecap="round"/>`:'';
-  const star = stage>=3 ? `<path d="M96 6 l5 10 11 1 -8 7 3 11 -11 -6 -10 6 3 -11 -8 -7 11 -1z" fill="#ffd36b" stroke="#e8a92a" stroke-width="2"/>`:'';
-  return `<svg class="shark" width="${size}" viewBox="0 0 180 120" role="img" aria-label="상어">${star}
-    <path d="M30 60 L6 34 Q4 60 6 86 Z" fill="${body}"/>
-    <path d="M86 30 Q92 ${stage>=1?8:16} 108 28 Z" fill="${body}"/>
-    <ellipse cx="96" cy="62" rx="68" ry="${36+stage*2}" fill="${body}"/>
-    <path d="M40 70 Q96 ${108+stage*2} 160 66 Q130 92 96 94 Q60 94 40 70Z" fill="${belly}"/>
-    <path d="M84 84 Q74 104 92 98 Z" fill="${body}"/>${stripes}
-    <path d="M104 52 v14 M110 52 v14" stroke="${belly}" stroke-opacity=".5" stroke-width="2.4" stroke-linecap="round"/>
-    ${eye}${mouth}<ellipse cx="140" cy="64" rx="7" ry="4" fill="#ff9fb5" opacity=".75"/></svg>`;
+  // 단계별 색: 자랄수록 등이 깊은 바다색으로 진해진다 [등 위쪽, 등 아래쪽, 외곽선]
+  const [top,mid,line]=[['#4b97d1','#86c8ee','#1d5c8f'],['#3d87c4','#74b9e6','#185384'],['#2f74b0','#62a8db','#134a78'],['#245f97','#5196cc','#0f3d66']][stage];
+  const id='sk'+(sharkSVG.n=(sharkSVG.n||0)+1), ink='#0d2b45';
+  const body='M34 57 C60 40 100 27 138 33 C160 37 173 51 171 62 C169 75 150 89 112 91 C80 93 54 81 34 68 Z';
+  const fin=8-stage*3;                       // 클수록 등지느러미가 높아진다
+  const er=[8,7.4,6.8,6.2][stage];           // 아기일수록 눈이 크다
+  const eye = mood==='sad'
+    ? `<path d="M${146-er} 51 q${er} ${er*.8} ${er*2} 0" stroke="${ink}" stroke-width="2.8" fill="none" stroke-linecap="round"/><path d="M138 41 l12 3" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>`
+    : `<circle cx="146" cy="50" r="${er}" fill="${ink}"/><circle cx="${148.4}" cy="${47.2}" r="${er*.36}" fill="#fff"/><circle cx="143.6" cy="53" r="${er*.16}" fill="#fff" opacity=".8"/>`;
+  const mouth = mood==='sad'
+    ? `<path d="M151 75 q6 -5 13 -1" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+    : `<path d="M150 71 q7 7 15 -1" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M155 74.2 l1.6 2.6 1.6 -2.4z" fill="#fff"/>`;
+  const marks = stage>=2 ? `<path d="M64 47 q4 8 1 16 M78 41 q5 9 2 18 M93 37 q5 9 2 18" stroke="${line}" stroke-opacity=".28" stroke-width="3.2" fill="none" stroke-linecap="round"/>`:'';
+  const crown = stage>=3 ? `<g transform="translate(6 5) rotate(-10 134 26)"><path d="M122 32 l2 -12 6 6 4 -9 4 9 6 -6 2 12 z" fill="#ffd36b" stroke="#d9951f" stroke-width="1.8" stroke-linejoin="round"/><circle cx="134" cy="28" r="1.8" fill="#ff6f9a"/></g>`:'';
+  return `<svg class="shark" width="${size}" viewBox="0 0 180 120" role="img" aria-label="상어">
+    <defs>
+      <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset=".75" stop-color="${mid}"/></linearGradient>
+      <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcefff"/></linearGradient>
+      <clipPath id="${id}c"><path d="${body}"/></clipPath>
+    </defs>
+    <g stroke="${line}" stroke-width="2.4" stroke-linejoin="round" fill="url(#${id}g)">
+      <path d="M40 62 C28 50 16 36 6 24 C12 40 17 52 20 62 C17 72 14 82 12 90 C22 80 31 71 40 66 Z"/>
+      <path d="M116 33 C108 ${22+fin*.5} 100 ${12+fin} 89 ${4+fin} C92 ${16+fin*.6} 90 28 84 36 Z"/>
+      <path d="M62 82 C58 88 52 92 46 94 C52 88 54 84 54 80 Z"/>
+      <path d="${body}"/>
+    </g>
+    <g clip-path="url(#${id}c)">
+      <path d="M20 69 C60 74 98 75 128 68 C148 63 163 62 182 64 L182 120 L20 120 Z" fill="url(#${id}b)"/>
+      <ellipse cx="108" cy="40" rx="40" ry="6" fill="#fff" opacity=".22"/>
+      ${marks}
+    </g>
+    <path d="${body}" fill="none" stroke="${line}" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M116 80 C112 92 103 101 90 106 C97 96 99 88 99 81 Z" fill="url(#${id}g)" stroke="${line}" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M118 50 q-3 7 0 14 M124 49 q-3 7.5 0 15 M130 49 q-3 7.5 0 15" stroke="${line}" stroke-opacity=".55" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${crown}${eye}${mouth}<ellipse cx="152" cy="64" rx="5.5" ry="3.2" fill="#ff8fab" opacity=".55"/></svg>`;
 }
 
 /* ===== 게임 UI ===== */
