@@ -1,5 +1,5 @@
 {
-  "name": "bukanggochi-api",
+  "name": "shark-keeper-api",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",

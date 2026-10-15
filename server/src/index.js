@@ -1,5 +1,5 @@
-// 부캉고치 API 서버 — 지금은 연결 확인용 뼈대. 게임 API는 이어서 추가한다.
-const ALLOWED_ORIGINS = ['https://bukanggochi.github.io'];
+// 상어집사 API 서버 — 지금은 연결 확인용 뼈대. 게임 API는 이어서 추가한다.
+const ALLOWED_ORIGINS = ['https://shark-keeper.github.io'];
 
 function cors(req) {
   const origin = req.headers.get('Origin');
@@ -18,7 +18,7 @@ export default {
   async fetch(req) {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
     const { pathname } = new URL(req.url);
-    if (pathname === '/' || pathname === '/health') return json(req, { ok: true, service: 'bukanggochi-api', time: Date.now() });
+    if (pathname === '/' || pathname === '/health') return json(req, { ok: true, service: 'shark-keeper-api', time: Date.now() });
     return json(req, { ok: false, error: 'not_found' }, 404);
   },
 };

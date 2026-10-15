@@ -1,7 +1,7 @@
 {
-  // 부캉고치 API 서버 (Cloudflare Workers)
+  // 상어집사 API 서버 (Cloudflare Workers)
   // Cloudflare 대시보드의 Worker 이름과 반드시 같아야 한다 (Workers Builds 연동).
-  "name": "bukanggochi-api",
+  "name": "shark-keeper-api",
   "main": "src/index.js",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true }
