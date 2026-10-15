@@ -63,13 +63,40 @@
 ## 다음 단계 후보
 
 1. ~~PWA화~~ (완료)
-2. 공유 랭킹용 API 서버 — **Cloudflare Workers + D1로 결정 (다음 작업)**. 서버 권위 모델: 클라이언트는 행동만 보내고 정산·확률 판정·사망·랭킹은 서버에서. 계획:
+2. 공유 랭킹용 API 서버 — **Cloudflare Workers + D1. ①②③ 완료(아래 "API 서버" 절), 다음은 ④ 화면 전환**. 서버 권위 모델: 클라이언트는 행동만 보내고 정산·확률 판정·사망·랭킹은 서버에서. 계획:
    - 무료 플랜 기준(2026-10 확인): Workers 하루 요청 10만·요청당 CPU 10ms, D1 하루 읽기 500만 행·쓰기 10만 행·저장 5GB. 2026-09부터 D1 한도 초과 시 쿼리 에러(UTC 자정=한국 오전 9시 해제). DAU 약 500~1,000명까지 무료로 예상. PHP 불가라 Laravel 대신 Workers(JS).
    - 순서: ① 사용자가 Cloudflare 계정 생성 + 배포 연결 ② `server/` 폴더에 Workers + D1 프로젝트(스키마, API: 상어 조회·생성/행동/랭킹, `settle`·`tick`·`act` 로직을 서버로 이전, 중복 요청 방지) ③ wrangler 로컬 모드로 테스트 ④ 화면을 API 사용으로 전환(처음엔 기기별 게스트 토큰, 기존 localStorage 상어 서버로 이전) ⑤ 공유 랭킹 연결, `makeRivals`·시간 빨리 감기 제거
    - 배포 연결은 **Cloudflare Workers Builds(GitHub 앱 연동)**로 결정: Cloudflare가 `main` push를 감지해 `server/`를 빌드·배포한다(API 토큰·GitHub Secrets 불필요). Worker 이름은 `shark-keeper-api`이고 `server/wrangler.jsonc`의 `name`과 반드시 같아야 한다. 대시보드 설정: Root directory `server`, Deploy command `npx wrangler deploy`, Build watch paths `server/*`. 서버 CORS 허용 주소는 `server/src/index.js`의 `ALLOWED_ORIGINS`. 토큰·비밀값은 절대 코드에 넣지 않는다(필요하면 `wrangler secret`).
    - **연결 완료(2026-10-15)**: API 주소 `https://shark-keeper-api.shark-keeper.workers.dev` (`/health`가 `{ok:true, db:true}`면 Worker·D1 정상). D1 데이터베이스 `shark-keeper`(ID는 `server/wrangler.jsonc`, 바인딩 `DB`, 마이그레이션 폴더 `server/migrations`). Cloudflare 빌드가 Cloning 단계에서 실패하면 대개 일시 오류라 대시보드에서 Retry build.
    - `server/`도 `_config.yml`의 Pages 제외 목록에 추가한다.
 3. 스토어 앱: **Flutter WebView로 결정**. 래퍼 앱 프로젝트는 `flutter_app/` (iOS는 웹 래퍼 반려 위험 있음)
+
+## API 서버 (`server/`, Cloudflare Workers + D1)
+
+- 주소: `https://shark-keeper-api.shark-keeper.workers.dev` — `main`에 push하면 Cloudflare Workers Builds가 `server/`만 배포(빌드 감시 경로 `server/*`).
+- 파일: `src/game.js`(게임 엔진: `CFG`·`settle`·`tick`·`act` — index.html 로직을 화면 코드 없이 옮김, 시간·난수를 인자로 받음), `src/index.js`(라우트·DB), `src/schema.js`(테이블 — 첫 요청 때 자동 생성, 바꿀 땐 `MIGRATIONS`에 단계 추가).
+- **밸런스 값은 지금 두 군데**: `index.html`의 `DEFAULTS`와 `server/src/game.js`의 `CFG`. 값을 바꿀 때 둘 다 고친다(화면을 서버 API로 전환한 뒤에는 화면이 `/api/config`를 쓰도록 바꿔 서버 한 곳으로 모은다).
+- 서버 엔진과 화면 로직이 같은지는 무작위·장기(5일) 시나리오로 비교 검증함. 엔진을 고치면 같은 비교를 다시 돌린다.
+- 인증: `POST /api/guest`가 기기별 게스트 토큰(`sk_...`)을 한 번만 내려주고, 이후 `Authorization: Bearer <토큰>`. DB에는 토큰의 SHA-256만 저장.
+- 상태를 바꾸는 요청은 `reqId`(8~64자, 영문·숫자·`_-`)를 함께 보내면 같은 요청이 두 번 와도 한 번만 처리하고 처음 응답을 돌려준다(`replay: true`). 동시 요청은 상어 행의 `version`으로 충돌을 막고 최대 5번 재시도, 그래도 안 되면 409 `busy`.
+- 오류 응답: `{ ok:false, error:<코드>, msg:<한국어 문구> }` (401 no_token/bad_token, 400 bad_name/bad_action/bad_req_id, 404 no_shark, 409 has_shark/name_taken/already_imported/busy).
+
+| API | 내용 |
+|---|---|
+| `GET /health` | 서버·DB 연결 확인 `{ok, db}` |
+| `GET /api/config` | 게임 설정값(`CFG`) |
+| `POST /api/guest` | 게스트 플레이어 생성 → `{token, playerId}` |
+| `GET /api/me` | 내 정보 + 지금 상어(서버 시각으로 정산) + 떠난 상어 기록(최근 20) |
+| `POST /api/shark` `{name}` | 입양(이름 1~10자, 살아 있는 상어끼리 이름 중복 불가, 플레이어당 살아 있는 상어 1마리) |
+| `POST /api/shark/action` `{action}` | `feed`/`swim`/`pet`/`clean`. 응답: `ok`, `msg`(말풍선), `fx`(이모지), `fx2`(`pellets`/`blood`), `cls`(애니메이션), `toasts[]`, `effect`(악효과), `error`(`cooldown`+`cdLeftMs`, `dead`), `shark` |
+| `POST /api/shark/ad` | 광고 보상: 먹이 가득(한국 날짜 기준 하루 3회). **광고 시청 검증 없음(목업)** — 실제 광고를 붙일 때 광고사 서버 검증 추가 |
+| `GET /api/rank?type=alive\|all` | 살아 있는 상어 / 플레이어별 역대 최고, 상위 50 + 토큰이 있으면 `me`(내 순위) |
+| `POST /api/import` `{shark, offsetMs}` | 브라우저(localStorage) 상어를 서버로 한 번 옮김. 값은 범위를 잘라서 받음(길이는 나이 대비 최대 성장량까지, 빨리 감기 시간은 되돌림) |
+
+- `shark` 응답 = 저장 상태 전체 + `id`, `stage`, `days`, `growthPerDay`, `cdLeftMs{행동별}`, `foodLeftMs`. 함께 오는 `now`(서버 시각)로 화면 타이머를 맞춘다.
+- 저장: `GET` 조회는 정산 결과를 30분에 한 번만 DB에 쓴다(정산은 결정적이라 다시 계산해도 같음 — 무료 쓰기 한도 절약). 매시 7분 cron이 50분 넘게 갱신 안 된 상어를 정산해 랭킹 길이·사망을 반영하고, 2일 지난 `requests` 기록을 지운다.
+- 테이블: `players`(토큰 해시, 역대 최고, 광고 횟수), `sharks`(상태 JSON + 랭킹용 열 `alive`·`len`·`rank_off`, `version`), `requests`(중복 요청 응답 기록).
+- 로컬 테스트: `cd server && npm install && npx wrangler dev --local` (로컬 D1 사용). 크론은 `/__scheduled?cron=7+*+*+*+*`(`--test-scheduled`).
 
 ## 보안 원칙
 

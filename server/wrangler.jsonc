@@ -11,8 +11,10 @@
     {
       "binding": "DB",
       "database_name": "shark-keeper",
-      "database_id": "05d64fc1-f16c-419e-93c5-dccc8efeed5a",
-      "migrations_dir": "migrations"
+      "database_id": "05d64fc1-f16c-419e-93c5-dccc8efeed5a"
     }
-  ]
+  ],
+  // 1시간마다(매시 7분) 오래 접속하지 않은 상어를 정산해 랭킹·사망을 반영한다
+  "triggers": { "crons": ["7 * * * *"] }
+  // 테이블은 src/schema.js가 첫 요청 때 자동으로 만든다
 }
