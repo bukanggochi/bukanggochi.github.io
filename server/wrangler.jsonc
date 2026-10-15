@@ -4,6 +4,15 @@
   "name": "shark-keeper-api",
   "main": "src/index.js",
   "compatibility_date": "2026-10-01",
-  "observability": { "enabled": true }
-  // D1 바인딩은 데이터베이스를 만든 뒤 추가한다.
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shark-keeper",
+      "database_id": "05d64fc1-f16c-419e-93c5-dccc8efeed5a",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

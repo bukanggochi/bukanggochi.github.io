@@ -15,10 +15,14 @@ const json = (req, data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors(req) } });
 
 export default {
-  async fetch(req) {
+  async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
     const { pathname } = new URL(req.url);
-    if (pathname === '/' || pathname === '/health') return json(req, { ok: true, service: 'shark-keeper-api', time: Date.now() });
+    if (pathname === '/' || pathname === '/health') {
+      let db = false;
+      try { db = (await env.DB.prepare('SELECT 1 AS ok').first('ok')) === 1; } catch (e) { db = false; }
+      return json(req, { ok: true, service: 'shark-keeper-api', db, time: Date.now() });
+    }
     return json(req, { ok: false, error: 'not_found' }, 404);
   },
 };
