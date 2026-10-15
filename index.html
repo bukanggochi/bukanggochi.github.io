@@ -497,7 +497,7 @@ function render(){
     if(k==='feed'){   // 먹이: 남은 개수 + 다음 충전까지 남은 시간, 막대는 충전 진행도
       const F=CFG.food, fl=foodLeft(sh);
       b.disabled=sh.food<=0||!sh.alive;
-      b.querySelector('.cd').textContent= sh.food<F.max ? `${sh.food}/${F.max} · ${fmtCd(fl)}` : `${F.max}/${F.max}`;
+      b.querySelector('.cd').textContent= sh.food<F.max ? `${sh.food}/${F.max} · ${fmtSec(fl)}` : `${F.max}/${F.max}`;
       b.querySelector('.fill').style.width= sh.food<F.max ? (100-fl/(F.regenMin*6e4)*100)+'%' : '0';
       return;
     }
@@ -510,6 +510,9 @@ function render(){
   $('adBtn').textContent=foodFull?'가득 참':'광고 보기';
   if(!sh.alive) showDeath();
 }
+// 먹이 충전 남은 시간: 9:05 처럼 분:초 (1시간 이상이면 1:02:05)
+const fmtSec=ms=>{ const s=Math.ceil(ms/1000), h=Math.floor(s/3600), m=Math.floor(s%3600/60), ss=String(s%60).padStart(2,'0');
+  return h?`${h}:${String(m).padStart(2,'0')}:${ss}`:`${m}:${ss}`; };
 const fmtCd=ms=>{ const m=Math.ceil(ms/6e4); return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`; };
 const medal=p=>p===1?'🥇':p===2?'🥈':p===3?'🥉':p;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
