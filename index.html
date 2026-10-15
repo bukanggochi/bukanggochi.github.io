@@ -48,7 +48,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .hud .name{font-family:var(--f-display);font-size:20px;line-height:1.1}
 .hud .meta{font-size:13px;color:var(--ink-soft);margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12px}
-.len{text-align:right}
+.chip.ail{background:#ffeceb;border-color:#f5b3ad;color:#a8281f;font-weight:700;animation:ailIn .35s ease}
+.chip.ail .ic{font-size:13px;line-height:1}
+@keyframes ailIn{from{transform:scale(.6);opacity:0}}
+.hud>div:first-child{min-width:0;flex:1}
+.len{text-align:right;flex:none}
+.len small{white-space:nowrap}
 .len b{font-family:var(--f-display);font-size:38px;line-height:1;font-weight:400}
 .len span{font-family:var(--f-display);font-size:18px;margin-left:2px}
 .len small{display:block;font-size:12px;color:var(--ink-soft)}
@@ -82,6 +87,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .toast[hidden]{display:block!important;opacity:0;translate:0 10px;pointer-events:none}
 .fx{position:absolute;z-index:6;pointer-events:none;font-size:22px;animation:float 1.2s ease-out forwards}
 @keyframes float{to{transform:translateY(-70px) scale(1.3);opacity:0}}
+.blood{position:absolute;z-index:4;pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle,rgba(200,24,36,.75) 0%,rgba(210,34,46,.38) 45%,rgba(214,38,48,0) 72%);
+  filter:blur(1.5px);animation:bleed 2.6s ease-out forwards}
+@keyframes bleed{0%{transform:translate(-50%,-50%) scale(.25);opacity:0}15%{opacity:1}100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.7);opacity:0}}
 .pellet{position:absolute;top:0;width:10px;height:10px;border-radius:50%;background:#b4652a;z-index:4;animation:drop 1s ease-in forwards}
 @keyframes drop{to{transform:translateY(120px);opacity:.3}}
 .stage-tag{position:absolute;right:10px;bottom:38px;z-index:5;font-family:var(--f-display);font-size:12px;color:#fff;background:rgba(13,53,87,.35);padding:3px 10px;border-radius:999px}
@@ -169,7 +178,7 @@ h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:16px 0 4px
     <div class="hud gut">
       <div>
         <div class="name" id="sName">-</div>
-        <div class="meta"><span class="chip num" id="sDays">생존 0일</span><span class="chip num" id="sRank">현재 -위</span></div>
+        <div class="meta"><span class="chip num" id="sDays">생존 0일</span><span class="chip num" id="sRank">현재 -위</span><span id="ailChips" style="display:contents"></span></div>
       </div>
       <div class="len num"><b id="sLen">30.0</b><span>cm</span><small id="sGrow">성장 중</small></div>
     </div>
@@ -268,7 +277,9 @@ const DEFAULTS = {
     pet:   { cdMin: 3,  gain: 10, perHourCap: 6 },
     clean: { cdMin: 0,  affPerPoop: 5 }
   },
-  // 악효과: chance(%) 확률로 발생, 각 스탯 감소치(점), keepGain=정상 효과도 함께 적용할지
+  // 악효과: chance(%) 확률로 발생, keepGain=정상 효과도 함께 적용할지
+  // 걸리면 effectDurMin분 동안 상태 이상(상단 라벨 + 상어 모습 변화)이 되고, 그동안 감소치(점)가 서서히 빠진다
+  effectDurMin: 5,
   effects: {
     feed: { name: '배탈',   chance: 8,  satiety: 15, exercise: 0,  affection: 5,  keepGain: false },
     swim: { name: '타박상', chance: 10, satiety: 0,  exercise: 15, affection: 5,  keepGain: false },
@@ -319,6 +330,7 @@ function settle(){
   let from=Math.max(sh.lastSim, t-CFG.maxSettleDays*864e5);
   while(from+step<=t && sh.alive){ tick(sh,CFG.stepMin/60,from+step); from+=step; }
   const rest=(t-from)/36e5; if(rest>0&&sh.alive) tick(sh,rest,t);
+  for(const a in (sh.ail||{})) if(sh.ail[a].until<=t) delete sh.ail[a];   // 끝난 상태 이상 정리
   sh.lastSim=t; bumpBest(sh); save();
 }
 /* 먹이 충전: foodT = 다음 1개를 충전하기 시작한 시각. 가득 차 있으면 충전 시계는 멈춰 있다 */
@@ -337,6 +349,10 @@ function tick(sh,h,at){
   sh.satiety=clamp(sh.satiety-d.satiety*h);
   sh.exercise=clamp(sh.exercise-d.exercise*h);
   sh.affection=clamp(sh.affection-(d.affection+CFG.poopAffDecay*sh.poop)*h);
+  // 상태 이상: 이 구간과 겹치는 시간만큼 감소치를 서서히 뺀다
+  const segFrom=at-h*36e5;
+  for(const a in (sh.ail||{})){ const A=sh.ail[a], o=Math.min(at,A.until)-Math.max(segFrom,A.from);
+    if(o>0) for(const k in A.rate) sh[k]=clamp(sh[k]-A.rate[k]*o); }
   sh.poopT+=h;
   while(sh.poopT>=CFG.poopEveryH){ sh.poopT-=CFG.poopEveryH; if(sh.poop<CFG.poopMax&&sh.satiety>5) sh.poop++; }
   sh.starveH = sh.satiety<=0 ? sh.starveH+h : Math.max(0,sh.starveH-h*2);
@@ -395,16 +411,31 @@ function act(a){
     }
     if(a==='pet') sh.pets.push(t);
     if(bad){
-      const drops=[];
-      ['satiety','exercise','affection'].forEach(k=>{ const v=+E[k]||0; if(v>0){ sh[k]=clamp(sh[k]-v); drops.push(`${STAT_NAME[k]} -${v}`); } });
+      const drops=startAil(sh,a,E,t);
       msg=pick(EFFECT_UI[a].msgs); fx=EFFECT_UI[a].icon; cls='hurt';
-      toast(`${E.name}! ${drops.join(' · ')||'스탯 변화 없음'}`);
+      toast(`${E.name}! ${CFG.effectDurMin}분 동안 ${drops.join(' · ')||'스탯 변화 없음'}`);
+      if(a==='pet') setTimeout(bloodFx,80);   // 물린 순간에만 물에 피가 살짝 번진다
     }
   }
   if(cls) anim(cls); if(fx) burst(fx);
   say(msg); save(); render();
 }
 const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+
+/* 상태 이상 시작. 이미 같은 상태면 남은 감소치에 새 감소치를 더하고 시간을 다시 effectDurMin분으로 */
+function startAil(sh,a,E,t){
+  const dur=CFG.effectDurMin*6e4; sh.ail=sh.ail||{};
+  const cur=sh.ail[a], rate={}, drops=[];
+  ['satiety','exercise','affection'].forEach(k=>{
+    const v=+E[k]||0; let rem=v;
+    if(cur&&cur.until>t) rem+=(cur.rate[k]||0)*(cur.until-t);
+    if(rem>0) rate[k]=rem/dur;
+    if(v>0) drops.push(`${STAT_NAME[k]} -${v}`);
+  });
+  sh.ail[a]={ from:t, until:t+dur, rate };
+  return drops;
+}
+const activeAils=(sh,t=now())=>{ const o={}; for(const a in (sh.ail||{})) if(sh.ail[a].until>t) o[a]=sh.ail[a]; return o; };
 
 /* ===== 랭킹 ===== */
 function rivalLen(x){ return x.alive ? x.base + x.rate*((now()-S.epoch)/36e5) : x.base; }
@@ -425,43 +456,78 @@ function withPos(rows){
   return rows;
 }
 
-/* ===== 상어 그림 (독창 디자인) ===== */
-function sharkSVG(stage,mood,size){
+/* ===== 상어 그림 (독창 디자인) =====
+   ail: 지금 걸려 있는 악효과 { feed:배탈, swim:타박상, pet:손물림 } */
+function sharkSVG(stage,mood,size,ail={}){
   // 단계별 색: 자랄수록 등이 깊은 바다색으로 진해진다 [등 위쪽, 등 아래쪽, 외곽선]
   const [top,mid,line]=[['#4b97d1','#86c8ee','#1d5c8f'],['#3d87c4','#74b9e6','#185384'],['#2f74b0','#62a8db','#134a78'],['#245f97','#5196cc','#0f3d66']][stage];
   const id='sk'+(sharkSVG.n=(sharkSVG.n||0)+1), ink='#0d2b45';
-  const body='M34 57 C60 40 100 27 138 33 C160 37 173 51 171 62 C169 75 150 89 112 91 C80 93 54 81 34 68 Z';
+  const sick=!!ail.feed, bruised=!!ail.swim, sorry=!!ail.pet;
+  // 배탈이면 배가 홀쭉하게 들어간 몸통
+  const body= sick ? 'M34 57 C60 40 100 27 138 33 C160 37 173 51 171 61 C169 71 150 80 112 81 C82 82 57 75 34 66 Z'
+                   : 'M34 57 C60 40 100 27 138 33 C160 37 173 51 171 62 C169 75 150 89 112 91 C80 93 54 81 34 68 Z';
+  const dy = sick ? -8 : 0;                  // 몸통이 홀쭉해진 만큼 아래 지느러미를 올린다
   const fin=8-stage*3;                       // 클수록 등지느러미가 높아진다
   const er=[8,7.4,6.8,6.2][stage];           // 아기일수록 눈이 크다
-  const eye = mood==='sad'
-    ? `<path d="M${146-er} 51 q${er} ${er*.8} ${er*2} 0" stroke="${ink}" stroke-width="2.8" fill="none" stroke-linecap="round"/><path d="M138 41 l12 3" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>`
-    : `<circle cx="146" cy="50" r="${er}" fill="${ink}"/><circle cx="${148.4}" cy="${47.2}" r="${er*.36}" fill="#fff"/><circle cx="143.6" cy="53" r="${er*.16}" fill="#fff" opacity=".8"/>`;
-  const mouth = mood==='sad'
-    ? `<path d="M151 75 q6 -5 13 -1" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
-    : `<path d="M150 71 q7 7 15 -1" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M155 74.2 l1.6 2.6 1.6 -2.4z" fill="#fff"/>`;
+  const stroke=(w=2.4)=>`stroke="${ink}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
+  const sweat='<path d="M133 30 q-4.5 6.5 0 9 q4.5 -2.5 0 -9z" fill="#d8f3ff" stroke="#5aa9d6" stroke-width="1.4"/>';
+  // 얼굴: 미안함(손물림) > 헬쑥함(배탈) > 시무룩 > 보통
+  const face = sorry?'sorry' : sick?'sick' : mood==='sad'?'sad' : 'ok';
+  let eye, mouth, cheek='<ellipse cx="152" cy="64" rx="5.5" ry="3.2" fill="#ff8fab" opacity=".55"/>', extra='';
+  if(face==='sorry'){        // 눈썹 안쪽이 올라간 걱정 눈썹, 아래로 내리깐 눈, 오물거리는 입, 식은땀
+    eye=`<circle cx="145.5" cy="51.5" r="${er}" fill="${ink}"/><path d="M${145.5-er*.8} ${51.5+er*.35} a${er*.8} ${er*.55} 0 0 0 ${er*1.6} 0" fill="#7fd0ff" opacity=".85"/>`
+      +`<circle cx="147.4" cy="49.4" r="${er*.34}" fill="#fff"/><circle cx="143.4" cy="52" r="${er*.14}" fill="#fff" opacity=".9"/>`
+      +`<path d="M139 ${43.5-er*.25} q5 -.5 11 -5" ${stroke(2)}/>`
+      +`<path d="M${145.5+er*.9} ${51.5+er*.7} q2.4 3.6 0 5.2 q-2.4 -1.6 0 -5.2z" fill="#9fe0ff" stroke="#4aa3d6" stroke-width="1"/>`;
+    mouth=`<path d="M151 73.5 q2 -2.4 4 0 q2 2.4 4 0 q2 -2.4 4 0" ${stroke(2.1)}/>`;
+    cheek='<ellipse cx="152" cy="64" rx="6.5" ry="3.6" fill="#ff7f9f" opacity=".75"/><path d="M148 62.5 l2 2.5 M151.5 62 l2 2.5 M155 62.5 l2 2.5" stroke="#e85a7d" stroke-width="1.1" stroke-linecap="round" opacity=".8"/>';
+    extra=sweat;
+  } else if(face==='sick'){  // 반쯤 감긴 눈 + 다크서클, 울렁이는 입, 창백한 초록빛, 식은땀
+    // 처진 윗눈꺼풀 아래로 눈동자 아랫부분만 보이고, 눈 밑이 거뭇하다
+    eye=`<path d="M${146-er*.85} 50.5 a${er*.85} ${er*.7} 0 0 0 ${er*1.7} 0 z" fill="${ink}"/><circle cx="${146+er*.25}" cy="${51.6}" r="${er*.2}" fill="#fff" opacity=".85"/>`
+      +`<path d="M${145-er} 51 q${er+1} -3.2 ${er*2+2} .6" ${stroke(2)}/>`
+      +`<path d="M${140.5-er*.2} ${56.5+er*.3} q5.5 2.6 11 0" stroke="#5f6f88" stroke-width="1.7" fill="none" stroke-linecap="round" opacity=".75"/>`
+      +`<path d="M${141-er*.2} ${59.5+er*.3} q5 2.2 9.5 0" stroke="#5f6f88" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".45"/>`;
+    mouth=`<path d="M149 70 q2 -2.6 4 0 t4 0 t4 0 t4 0" ${stroke(2.1)}/>`;
+    cheek='<ellipse cx="152" cy="62" rx="5.5" ry="3" fill="#8fd6a0" opacity=".7"/>';
+    extra=sweat;
+  } else if(face==='sad'){
+    eye=`<path d="M${146-er} 51 q${er} ${er*.8} ${er*2} 0" ${stroke(2.8)}/><path d="M138 41 l12 3" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>`;
+    mouth=`<path d="M151 75 q6 -5 13 -1" ${stroke()}/>`;
+  } else {
+    eye=`<circle cx="146" cy="50" r="${er}" fill="${ink}"/><circle cx="148.4" cy="47.2" r="${er*.36}" fill="#fff"/><circle cx="143.6" cy="53" r="${er*.16}" fill="#fff" opacity=".8"/>`;
+    mouth=`<path d="M150 71 q7 7 15 -1" ${stroke()}/><path d="M155 74.2 l1.6 2.6 1.6 -2.4z" fill="#fff"/>`;
+  }
+  // 타박상: 눈가 멍 + 몸 곳곳 반창고
+  const bruise = bruised ? `<ellipse cx="145" cy="52.5" rx="${er+7.5}" ry="${er+6.5}" fill="url(#${id}bz)"/>` : '';
+  const plaster=(x,y,r,s=1)=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})"><rect x="-11" y="-3.6" width="22" height="7.2" rx="3.6" fill="#f6cfa3" stroke="#c88b55" stroke-width="1.1"/><rect x="-4" y="-3.6" width="8" height="7.2" fill="#e9b47f"/><circle cx="-7.5" cy="-1" r=".7" fill="#c88b55"/><circle cx="-7.5" cy="1.3" r=".7" fill="#c88b55"/><circle cx="7.5" cy="-1" r=".7" fill="#c88b55"/><circle cx="7.5" cy="1.3" r=".7" fill="#c88b55"/></g>`;
+  const plasters = bruised ? plaster(80,50,45)+plaster(80,50,-45)+plaster(110,70,-18,.9)+plaster(55,63,24,.85)+plaster(22,48,62,.7) : '';
+  const crease = sick ? `<path d="M66 72 q22 5 44 1 M76 77 q16 3 30 0" stroke="${line}" stroke-opacity=".3" stroke-width="1.8" fill="none" stroke-linecap="round"/>` : '';
+  const pale = sick ? '<rect x="0" y="0" width="180" height="120" fill="#c9f2cf" opacity=".28"/>' : '';
   const marks = stage>=2 ? `<path d="M64 47 q4 8 1 16 M78 41 q5 9 2 18 M93 37 q5 9 2 18" stroke="${line}" stroke-opacity=".28" stroke-width="3.2" fill="none" stroke-linecap="round"/>`:'';
   const crown = stage>=3 ? `<g transform="translate(6 5) rotate(-10 134 26)"><path d="M122 32 l2 -12 6 6 4 -9 4 9 6 -6 2 12 z" fill="#ffd36b" stroke="#d9951f" stroke-width="1.8" stroke-linejoin="round"/><circle cx="134" cy="28" r="1.8" fill="#ff6f9a"/></g>`:'';
   return `<svg class="shark" width="${size}" viewBox="0 0 180 120" role="img" aria-label="상어">
     <defs>
       <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset=".75" stop-color="${mid}"/></linearGradient>
       <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcefff"/></linearGradient>
+      <radialGradient id="${id}bz"><stop offset=".4" stop-color="#6a2f91" stop-opacity=".9"/><stop offset=".7" stop-color="#8d4bb5" stop-opacity=".6"/><stop offset=".88" stop-color="#b07ad0" stop-opacity=".25"/><stop offset="1" stop-color="#b07ad0" stop-opacity="0"/></radialGradient>
       <clipPath id="${id}c"><path d="${body}"/></clipPath>
     </defs>
     <g stroke="${line}" stroke-width="2.4" stroke-linejoin="round" fill="url(#${id}g)">
       <path d="M40 62 C28 50 16 36 6 24 C12 40 17 52 20 62 C17 72 14 82 12 90 C22 80 31 71 40 66 Z"/>
       <path d="M116 33 C108 ${22+fin*.5} 100 ${12+fin} 89 ${4+fin} C92 ${16+fin*.6} 90 28 84 36 Z"/>
-      <path d="M62 82 C58 88 52 92 46 94 C52 88 54 84 54 80 Z"/>
+      <path transform="translate(0 ${dy})" d="M62 82 C58 88 52 92 46 94 C52 88 54 84 54 80 Z"/>
       <path d="${body}"/>
     </g>
     <g clip-path="url(#${id}c)">
       <path d="M20 69 C60 74 98 75 128 68 C148 63 163 62 182 64 L182 120 L20 120 Z" fill="url(#${id}b)"/>
       <ellipse cx="108" cy="40" rx="40" ry="6" fill="#fff" opacity=".22"/>
-      ${marks}
+      ${marks}${crease}${pale}${bruise}
     </g>
     <path d="${body}" fill="none" stroke="${line}" stroke-width="2.4" stroke-linejoin="round"/>
-    <path d="M116 80 C112 92 103 101 90 106 C97 96 99 88 99 81 Z" fill="url(#${id}g)" stroke="${line}" stroke-width="2.4" stroke-linejoin="round"/>
+    <path transform="translate(0 ${dy})" d="M116 80 C112 92 103 101 90 106 C97 96 99 88 99 81 Z" fill="url(#${id}g)" stroke="${line}" stroke-width="2.4" stroke-linejoin="round"/>
     <path d="M118 50 q-3 7 0 14 M124 49 q-3 7.5 0 15 M130 49 q-3 7.5 0 15" stroke="${line}" stroke-opacity=".55" stroke-width="2" fill="none" stroke-linecap="round"/>
-    ${crown}${eye}${mouth}<ellipse cx="152" cy="64" rx="5.5" ry="3.2" fill="#ff8fab" opacity=".55"/></svg>`;
+    ${plasters}${crown}${eye}${mouth}${cheek}${extra}</svg>`;
 }
 
 /* ===== 게임 UI ===== */
@@ -474,7 +540,7 @@ $('stats').innerHTML=STATS.map(([k,l,c])=>`<div class="stat"><span class="lbl">$
 $('actions').innerHTML=ACTS.map(([k,i,t])=>`<button class="act" id="a-${k}"><span class="ic">${i}</span><span class="t">${t}</span><span class="cd num"></span><span class="fill"></span></button>`).join('');
 ACTS.forEach(([k])=>$('a-'+k).onclick=()=>act(k));
 
-let lastStage=-1,lastMood='';
+let lastStage=-1,lastMood='',lastAilKey='';
 function render(){
   const sh=S.shark;
   if(curTab==='rank') renderRank(); if(curTab==='rec') renderRec();
@@ -490,9 +556,15 @@ function render(){
   STATS.forEach(([k])=>{ const v=sh[k]; $('b-'+k).firstElementChild.style.width=v+'%'; $('b-'+k).setAttribute('aria-valuenow',Math.round(v));
     const el=$('v-'+k); el.textContent=(v<25?'⚠ ':'')+Math.round(v); el.className='val num'+(v<25?' low':''); });
   const mood=(Math.min(sh.satiety,sh.exercise,sh.affection)<20||sh.poop>=3)?'sad':'ok';
-  if(st!==lastStage||mood!==lastMood){
-    $('sharkWrap').innerHTML=sharkSVG(st,mood,Math.round(150+Math.min(st,3)*22));
-    $('sharkWrap').classList.toggle('sad',mood==='sad'); lastStage=st; lastMood=mood;
+  // 상태 이상 라벨: 걸린 종류가 바뀔 때만 다시 그리고(등장 애니메이션), 남은 시간은 매초 갱신
+  const ails=sh.alive?activeAils(sh):{}, ailKey=Object.keys(ails).sort().join(',');
+  if(ailKey!==lastAilKey){
+    $('ailChips').innerHTML=Object.keys(ails).map(a=>`<span class="chip ail num" data-ail="${a}" title="${CFG.effects[a].name}"><span class="ic">${EFFECT_UI[a].icon}</span>${CFG.effects[a].name} <b></b></span>`).join('');
+  }
+  $('ailChips').querySelectorAll('[data-ail]').forEach(el=>{ el.querySelector('b').textContent=fmtSec(ails[el.dataset.ail].until-now()); });
+  if(st!==lastStage||mood!==lastMood||ailKey!==lastAilKey){
+    $('sharkWrap').innerHTML=sharkSVG(st,mood,Math.round(150+Math.min(st,3)*22),ails);
+    $('sharkWrap').classList.toggle('sad',mood==='sad'&&!ailKey); lastStage=st; lastMood=mood; lastAilKey=ailKey;
   }
   document.querySelectorAll('.poop').forEach(p=>p.remove());
   for(let i=0;i<sh.poop;i++){ const p=document.createElement('span'); p.className='poop'; p.textContent='💩'; p.style.left=(18+i*14)+'%'; $('tank').appendChild(p); }
@@ -545,7 +617,7 @@ function renderRec(){
   $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
     먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 한 번에 가득 채워져요.<br><br>
     수영은 처음엔 ${CFG.actions.swim.cdMin}분을 쉬어야 하지만, 수영할 때마다 쉬는 시간이 ${CFG.actions.swim.cdStepMin}분씩 줄어 최소 ${CFG.actions.swim.cdFloorMin}분까지 짧아져요.<br><br>
-    가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}이 생겨 스탯이 떨어져요.`;
+    가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}에 걸려요. 걸리면 ${CFG.effectDurMin}분 동안 상어 모습이 바뀌고 스탯이 서서히 떨어져요.`;
 }
 
 /* effects */
@@ -554,14 +626,25 @@ function say(t){ const el=$('say'); el.textContent=t; el.style.opacity=1; clearT
 function toast(t){ const el=$('toast'); el.textContent=t; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true,2600); }
 function anim(c){ const w=$('sharkWrap'); w.classList.remove('chomp','dash','wiggle','hurt'); void w.offsetWidth; w.classList.add(c); setTimeout(()=>w.classList.remove(c),1500); }
 function burst(e){ for(let i=0;i<4;i++){ const f=document.createElement('span'); f.className='fx'; f.textContent=e; f.style.left=(40+Math.random()*20)+'%'; f.style.top=(35+Math.random()*15)+'%'; f.style.animationDelay=(i*.12)+'s'; $('tank').appendChild(f); setTimeout(()=>f.remove(),1700);} }
+// 손물림: 상어 입가에서 물속으로 피가 살짝 번졌다 사라진다
+function bloodFx(){
+  const tank=$('tank'), svg=$('sharkWrap').querySelector('svg'); if(!svg) return;
+  const tr=tank.getBoundingClientRect(), r=svg.getBoundingClientRect();
+  const x=r.left-tr.left+r.width*.86, y=r.top-tr.top+r.height*.6;
+  for(let i=0;i<6;i++){ const b=document.createElement('span'); b.className='blood';
+    const s=14+Math.random()*16; b.style.width=b.style.height=s+'px';
+    b.style.left=(x+(Math.random()-.5)*14)+'px'; b.style.top=(y+(Math.random()-.5)*10)+'px';
+    b.style.setProperty('--dx',(8+Math.random()*26)+'px'); b.style.setProperty('--dy',(-6-Math.random()*22)+'px');
+    b.style.animationDelay=(i*.12)+'s'; tank.appendChild(b); setTimeout(()=>b.remove(),3400); }
+}
 function dropPellets(){ for(let i=0;i<5;i++){ const p=document.createElement('span'); p.className='pellet'; p.style.left=(45+Math.random()*14)+'%'; p.style.animationDelay=(i*.1)+'s'; $('tank').appendChild(p); setTimeout(()=>p.remove(),1400);} }
 function bubbles(){ for(let i=0;i<7;i++){ const b=document.createElement('span'); const s=6+Math.random()*10; b.className='bubble'; b.style.cssText=`width:${s}px;height:${s}px;left:${Math.random()*95}%;animation-duration:${5+Math.random()*6}s;animation-delay:${-Math.random()*8}s`; $('tank').appendChild(b);} }
 
 /* flows */
 function newShark(name){
   const t=now();
-  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], rankOff:false };
-  save(); lastStage=-1; render(); say(`안녕! 나는 ${name}이에요`);
+  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], ail:{}, rankOff:false };
+  save(); lastStage=-1; lastAilKey=''; render(); say(`안녕! 나는 ${name}이에요`);
 }
 function showStart(again){
   $('startShark').innerHTML=sharkSVG(0,'ok',150);
@@ -618,7 +701,7 @@ bubbles();
 if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); }
 else showStart(false);
 setInterval(()=>{ if(S.shark&&S.shark.alive){ settle(); render(); } },15000);
-setInterval(()=>{ if(S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
+setInterval(()=>{ if(S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||lastAilKey||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
 // 앱을 다시 열었을 때(백그라운드 → 화면) 지난 시간을 바로 정산
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&S.shark&&S.shark.alive){ settle(); render(); } });
 
