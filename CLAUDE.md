@@ -17,6 +17,11 @@
 
 ## 작업 방식 (사용자와 합의된 규칙)
 
+- **여러 세션이 동시에 이 저장소를 고친다.** 그래서 어느 세션이든 파일을 고치기 전과 push하기 직전에 항상 최신 `main`을 받는다:
+  1. 작업(설정값 수정 포함)을 시작하기 전에 `git fetch origin main && git rebase origin/main`으로 최신 상태를 받고, 그 위에서 고친다. 이 파일(CLAUDE.md)도 바뀌었을 수 있으니 받은 뒤 다시 읽는다.
+  2. 커밋 후 push 직전에 다시 `git fetch origin main && git rebase origin/main`을 하고 push한다.
+  3. rebase 충돌이 나면 다른 세션의 변경을 지우지 않고 양쪽 의도를 모두 살려 합친다. 판단이 어려우면 사용자에게 묻는다. `git push --force`는 쓰지 않는다.
+  4. push가 거절되면(다른 세션이 먼저 push) 2번부터 다시 한다.
 - 사용자가 "배탈 확률 12%로"처럼 말하면 **`server/src/game.js`의 `CFG`** 값을 고쳐 커밋하고 `main`에 push한다. Cloudflare가 서버를 다시 배포하면(1~2분) 모든 플레이어 화면에 다음 접속부터 적용된다. 반영 확인은 `https://shark-keeper-api.shark-keeper.workers.dev/api/config`.
 - 밸런스 값은 **서버(`server/src/game.js`의 `CFG`) 한 곳에만** 있다. 화면(`index.html`)은 시작할 때 `GET /api/config`로 받아 `CFG`에 넣고(4초 제한), 받은 값을 localStorage `shark-keeper-cfg`에 보관해 서버에 닿지 않으면 그 값으로 실행한다. 보관값도 없으면 "바다에 연결하지 못했어요" 안내(`#ovCfg`, 다시 시도). `index.html`의 `DEFAULTS`에는 화면 전용 값(`brandName`)만, `API_BASE`는 서버 주소. 관리자 탭은 제거했고 브라우저의 옛 설정(`S.cfg`)은 무시하고 지운다.
 - UI 문구는 한국어. 모바일 세로 화면 우선, 밝은 바다 블루 톤.
