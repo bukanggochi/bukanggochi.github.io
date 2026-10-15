@@ -599,7 +599,7 @@ function render(){
   }
   $('ailChips').querySelectorAll('[data-ail]').forEach(el=>{ el.querySelector('b').textContent=fmtSec(ails[el.dataset.ail].until-now()); });
   const illChip=$('ailChips').querySelector('[data-ill]');   // 병은 시간이 아니라 치료 진행도로 표시
-  if(illChip) illChip.querySelector('b').textContent=`${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure} · ${fmtSec(Math.max(0,(sh.ill.deadline||0)-now()))}`;
+  if(illChip&&sh.ill) illChip.querySelector('b').textContent=`${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure} · ${fmtSec(Math.max(0,(sh.ill.deadline||0)-now()))}`;
   if(sh.alive&&sh.ill&&!sh.ill.seen){ sh.ill.seen=true; save(); setTimeout(()=>{ say('똥이 너무 많아서 아파요… 쓰다듬어 주세요'); toast(`${CFG.illness.name}에 걸렸어요! 쓰다듬기 ${CFG.illness.petsToCure}번으로 낫게 해 주세요`); },300); }
   if(st!==lastStage||mood!==lastMood||ailKey!==lastAilKey){
     $('sharkWrap').innerHTML=sharkSVG(st,mood,Math.round(150+Math.min(st,3)*22),look);
@@ -686,7 +686,7 @@ function bubbles(){ for(let i=0;i<7;i++){ const b=document.createElement('span')
 function newShark(name){
   const t=now();
   S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], ail:{}, ill:null, rankOff:false };
-  save(); lastStage=-1; lastAilKey=''; render(); say(`안녕! 나는 ${name}이에요`);
+  save(); lastStage=-1; lastAilKey=null; render(); say(`안녕! 나는 ${name}이에요`);
 }
 function showStart(again){
   $('startShark').innerHTML=sharkSVG(0,'ok',150);
