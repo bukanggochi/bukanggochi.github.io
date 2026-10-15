@@ -3,8 +3,8 @@ import 'dart:ui' show Color;
 /// 앱이 띄우는 게임 주소. 게임은 웹(GitHub Pages)에서 업데이트되므로
 /// 밸런스·디자인 변경은 앱을 다시 배포하지 않아도 반영된다.
 /// `source=app`으로 웹 쪽에서 앱 실행인지 구분할 수 있다.
-const kGameUrl = 'https://bukanggochi.github.io/?source=app';
-const kGameHost = 'bukanggochi.github.io';
+const kGameUrl = 'https://shark-keeper.github.io/?source=app';
+const kGameHost = 'shark-keeper.github.io';
 
 /// 브랜드명(가칭). 바꿀 때는 tool/setup.dart의 kDisplayName도 같이 바꾼다.
 const kAppTitle = '부캉이 키우기';

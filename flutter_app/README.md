@@ -1,6 +1,6 @@
 # 부캉이 키우기 — Flutter 앱 (WebView 래퍼)
 
-배포 중인 웹게임 <https://bukanggochi.github.io/> 을 앱 화면에 띄우는 Flutter 프로젝트입니다.
+배포 중인 웹게임 <https://shark-keeper.github.io/> 을 앱 화면에 띄우는 Flutter 프로젝트입니다.
 게임 자체는 웹에서 업데이트되므로 **밸런스·디자인 변경은 앱을 다시 내지 않아도 바로 반영**됩니다.
 앱을 다시 빌드해야 하는 경우는 앱 이름·아이콘·스플래시·이 폴더의 코드를 바꿀 때뿐입니다.
 
@@ -15,7 +15,7 @@ dart run tool/setup.dart
 
 이 스크립트가 하는 일:
 
-1. `flutter create`로 `android/`, `ios/` 폴더 생성 (앱 ID `io.github.bukanggochi`)
+1. `flutter create`로 `android/`, `ios/` 폴더 생성 (앱 ID `io.github.sharkkeeper`)
 2. 앱 이름을 `부캉이`로 설정, 안드로이드 릴리스 빌드에 인터넷 권한 추가
 3. 앱 아이콘(`flutter_launcher_icons`), 스플래시(`flutter_native_splash`) 생성
 
@@ -32,7 +32,7 @@ flutter test         # 링크 처리 규칙 테스트
 
 | 항목 | 동작 |
 |---|---|
-| 게임 화면 | `https://bukanggochi.github.io/?source=app` 을 WebView로 표시 (세로 고정, 확대 끔) |
+| 게임 화면 | `https://shark-keeper.github.io/?source=app` 을 WebView로 표시 (세로 고정, 확대 끔) |
 | 외부 링크 | 게임 주소 밖 링크는 기기 브라우저로 연다 |
 | 뒤로가기 (안드로이드) | 웹 안에서 뒤로 갈 곳이 없으면 앱 종료 |
 | 첫 로딩 | 상어 그림 + 진행 막대 |

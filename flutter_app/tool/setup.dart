@@ -3,8 +3,8 @@
 // 다시 실행해도 안전하다(이미 있는 파일은 flutter create가 덮어쓰지 않는다).
 import 'dart:io';
 
-const kOrg = 'io.github'; // → 앱 ID: io.github.bukanggochi (스토어 출시 후에는 바꿀 수 없음)
-const kProjectName = 'bukanggochi';
+const kOrg = 'io.github'; // → 앱 ID: io.github.sharkkeeper (스토어 출시 후에는 바꿀 수 없음)
+const kProjectName = 'sharkkeeper';   // 밑줄 없이: iOS 번들 ID와 안드로이드 앱 ID가 똑같이 io.github.sharkkeeper가 된다
 const kDisplayName = '부캉이'; // 홈 화면 아이콘 아래 표시되는 이름
 
 Future<void> run(String cmd, List<String> args) async {

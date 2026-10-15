@@ -2,8 +2,8 @@
 
 다마고치형 상어 육성 모바일 웹게임. 엔딩 없이 몸길이(cm)로 경쟁한다.
 
-- 배포 주소: https://bukanggochi.github.io/
-- 저장소: `bukanggochi/bukanggochi.github.io` (GitHub Pages, `main` 브랜치 루트)
+- 배포 주소: https://shark-keeper.github.io/ (예전 `bukanggochi.github.io`는 더 이상 쓰지 않는다 — 서버 CORS도 새 주소만 허용)
+- 저장소: `shark-keeper/shark-keeper.github.io` (GitHub Pages, `main` 브랜치 루트)
 - 게임 이름 '부캉이'는 상표 검토 전 가칭. 브랜드명은 `DEFAULTS.brandName` 한 곳에서 바꾼다.
 
 ## 파일 구조
@@ -12,7 +12,7 @@
 - `manifest.json`, `sw.js`, `icons/` — PWA(홈 화면 설치·오프라인 실행). 서비스 워커는 같은 사이트 파일을 **네트워크 우선**으로 받으므로 `index.html`만 고쳐 push해도 바로 반영된다. 캐시 구조를 바꿀 때만 `sw.js`의 `VERSION`을 올린다.
 - 아이콘은 `sharkSVG(1,'ok')`(성장기 상어)를 바다 배경에 그려 만든 PNG다. 상어 디자인을 바꾸면 아이콘도 다시 생성한다.
 - 빌드 단계 없음. 파일을 고쳐서 push하면 1~2분 뒤 배포 주소에 반영된다.
-- `flutter_app/` — 배포 주소를 WebView로 띄우는 Flutter 래퍼 앱(앱 ID `io.github.bukanggochi`). `_config.yml`에서 Pages 배포 대상에서 제외. 처음엔 사용자 PC에서 `dart run tool/setup.dart`로 android/ios 폴더를 만든다(이 작업 환경에서는 Flutter SDK·pub.dev 접근 불가라 빌드 불가). 서명 키(`key.properties`, `*.jks`)는 절대 커밋하지 않는다.
+- `flutter_app/` — 배포 주소를 WebView로 띄우는 Flutter 래퍼 앱(앱 ID `io.github.sharkkeeper`, Dart 패키지 이름 `sharkkeeper`, 게임 주소는 `flutter_app/lib/config.dart`의 `kGameUrl`/`kGameHost`). `_config.yml`에서 Pages 배포 대상에서 제외. 처음엔 사용자 PC에서 `dart run tool/setup.dart`로 android/ios 폴더를 만든다(이 작업 환경에서는 Flutter SDK·pub.dev 접근 불가라 빌드 불가). 서명 키(`key.properties`, `*.jks`)는 절대 커밋하지 않는다.
 - 브랜드명을 바꿀 때는 `DEFAULTS.brandName` 외에 `index.html`의 `<title>`·`apple-mobile-web-app-title`, `manifest.json`의 `name`/`short_name`, `flutter_app/lib/config.dart`의 `kAppTitle`, `flutter_app/tool/setup.dart`의 `kDisplayName`도 함께 바꾼다.
 
 ## 작업 방식 (사용자와 합의된 규칙)
@@ -26,7 +26,7 @@
 - 밸런스 값은 **서버(`server/src/game.js`의 `CFG`) 한 곳에만** 있다. 화면(`index.html`)은 시작할 때 `GET /api/config`로 받아 `CFG`에 넣고(4초 제한), 받은 값을 localStorage `shark-keeper-cfg`에 보관해 서버에 닿지 않으면 그 값으로 실행한다. 보관값도 없으면 "바다에 연결하지 못했어요" 안내(`#ovCfg`, 다시 시도). `index.html`의 `DEFAULTS`에는 화면 전용 값(`brandName`)만, `API_BASE`는 서버 주소. 관리자 탭은 제거했고 브라우저의 옛 설정(`S.cfg`)은 무시하고 지운다.
 - UI 문구는 한국어. 모바일 세로 화면 우선, 밝은 바다 블루 톤.
 - 커밋 작성자는 `Claude <noreply@anthropic.com>`.
-- push 후 https://bukanggochi.github.io/ 를 열어 반영됐는지 확인한다.
+- push 후 https://shark-keeper.github.io/ 를 열어 반영됐는지 확인한다.
 
 ## 현재 게임 규칙 (`server/src/game.js`의 `CFG`)
 
