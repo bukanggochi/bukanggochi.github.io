@@ -67,6 +67,7 @@
    - 무료 플랜 기준(2026-10 확인): Workers 하루 요청 10만·요청당 CPU 10ms, D1 하루 읽기 500만 행·쓰기 10만 행·저장 5GB. 2026-09부터 D1 한도 초과 시 쿼리 에러(UTC 자정=한국 오전 9시 해제). DAU 약 500~1,000명까지 무료로 예상. PHP 불가라 Laravel 대신 Workers(JS).
    - 순서: ① 사용자가 Cloudflare 계정 생성 + 배포 연결 ② `server/` 폴더에 Workers + D1 프로젝트(스키마, API: 상어 조회·생성/행동/랭킹, `settle`·`tick`·`act` 로직을 서버로 이전, 중복 요청 방지) ③ wrangler 로컬 모드로 테스트 ④ 화면을 API 사용으로 전환(처음엔 기기별 게스트 토큰, 기존 localStorage 상어 서버로 이전) ⑤ 공유 랭킹 연결, `makeRivals`·시간 빨리 감기 제거
    - 배포 연결은 **Cloudflare Workers Builds(GitHub 앱 연동)**로 결정: Cloudflare가 `main` push를 감지해 `server/`를 빌드·배포한다(API 토큰·GitHub Secrets 불필요). Worker 이름은 `shark-keeper-api`이고 `server/wrangler.jsonc`의 `name`과 반드시 같아야 한다. 대시보드 설정: Root directory `server`, Deploy command `npx wrangler deploy`, Build watch paths `server/*`. 서버 CORS 허용 주소는 `server/src/index.js`의 `ALLOWED_ORIGINS`. 토큰·비밀값은 절대 코드에 넣지 않는다(필요하면 `wrangler secret`).
+   - **연결 완료(2026-10-15)**: API 주소 `https://shark-keeper-api.shark-keeper.workers.dev` (`/health`가 `{ok:true, db:true}`면 Worker·D1 정상). D1 데이터베이스 `shark-keeper`(ID는 `server/wrangler.jsonc`, 바인딩 `DB`, 마이그레이션 폴더 `server/migrations`). Cloudflare 빌드가 Cloning 단계에서 실패하면 대개 일시 오류라 대시보드에서 Retry build.
    - `server/`도 `_config.yml`의 Pages 제외 목록에 추가한다.
 3. 스토어 앱: **Flutter WebView로 결정**. 래퍼 앱 프로젝트는 `flutter_app/` (iOS는 웹 래퍼 반려 위험 있음)
 
