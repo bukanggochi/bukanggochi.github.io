@@ -262,9 +262,10 @@ const DEFAULTS = {
   poopEveryH: 3, poopMax: 5, poopAffDecay: 0.6, poopGrowthPenaltyPct: 8,
   starveDeathH: 24, allZeroDeathH: 8, stepMin: 10, maxSettleDays: 14,
   actions: {
-    feed:  { cdMin: 0,  gain: 30 },   // 쿨타임 대신 먹이 개수(food)로 제한
-    swim:  { cdMin: 45, gain: 25, satietyCost: 6 },
-    pet:   { cdMin: 3,  gain: 12, perHourCap: 6 },
+    feed:  { cdMin: 0,  gain: 10 },   // 쿨타임 대신 먹이 개수(food)로 제한
+    // 수영 쿨타임: 첫 수영 후 cdMin분, 이후 수영할 때마다 cdStepMin분씩 줄어 cdFloorMin분까지
+    swim:  { cdMin: 45, cdStepMin: 1, cdFloorMin: 5, gain: 10, satietyCost: 5 },
+    pet:   { cdMin: 3,  gain: 10, perHourCap: 6 },
     clean: { cdMin: 0,  affPerPoop: 5 }
   },
   // 악효과: chance(%) 확률로 발생, 각 스탯 감소치(점), keepGain=정상 효과도 함께 적용할지
@@ -356,7 +357,13 @@ const EFFECT_UI = {
   pet:  { icon:'🦷', msgs:['앗, 손을 덥석 물었어요! 미안해요…','깜짝 놀라서 깨물어 버렸어요'] }
 };
 const STAT_NAME={satiety:'배부름',exercise:'운동',affection:'애정'};
-function cdLeft(a){ const sh=S.shark; const last=sh.cd[a]||0; return Math.max(0,last+CFG.actions[a].cdMin*6e4-now()); }
+// 지금 걸려 있는 쿨타임 길이(ms). 수영은 지금까지 수영한 횟수(swimN)에 따라 짧아진다
+function cdMs(a,sh=S.shark){
+  const A=CFG.actions[a];
+  if(a==='swim'){ const n=sh.swimN||0; return Math.max(A.cdFloorMin, A.cdMin-Math.max(0,n-1)*A.cdStepMin)*6e4; }
+  return A.cdMin*6e4;
+}
+function cdLeft(a){ const sh=S.shark; const last=sh.cd[a]||0; return Math.max(0,last+cdMs(a,sh)-now()); }
 function act(a){
   settle(); const sh=S.shark; if(!sh.alive) return render();
   if(cdLeft(a)>0) return;
@@ -380,6 +387,7 @@ function act(a){
   if(ok){
     const bad = E && E.chance>0 && Math.random()*100 < E.chance;
     sh.cd[a]=t; sh.lastCare=t;
+    if(a==='swim') sh.swimN=(sh.swimN||0)+1;   // 타박상이 나도 수영은 한 것으로 센다
     if(!bad || E.keepGain){
       if(a==='feed'){ sh.satiety=clamp(sh.satiety+A.gain); msg=pick(['냠냠! 맛있어요','오물오물…','최고의 정어리!']); fx='🐟'; cls='chomp'; }
       if(a==='swim'){ sh.exercise=clamp(sh.exercise+A.gain); sh.satiety=clamp(sh.satiety-A.satietyCost); msg=pick(['슝— 한 바퀴!','지느러미 운동 완료','더 빨라진 것 같아요']); fx='💨'; cls='dash'; }
@@ -493,7 +501,7 @@ function render(){
   else if(sh.satiety<25) al.push(['',`배가 많이 고파요. 배부름 ${CFG.noGrowthBelowSatiety} 아래로 떨어지면 성장이 멈춰요.`]);
   if(sh.poop>=3) al.push(['',`똥이 ${sh.poop}개 쌓였어요. 성장이 ${Math.round(sh.poop*CFG.poopGrowthPenaltyPct)}% 느려지고 있어요.`]);
   $('alertBox').innerHTML=al.map(([c,t])=>`<div class="alert ${c}">${t}</div>`).join('');
-  ACTS.forEach(([k])=>{ const b=$('a-'+k), left=cdLeft(k), cd=Math.max(1,CFG.actions[k].cdMin*6e4);
+  ACTS.forEach(([k])=>{ const b=$('a-'+k), left=cdLeft(k), cd=Math.max(1,cdMs(k,sh));
     if(k==='feed'){   // 먹이: 남은 개수 + 다음 충전까지 남은 시간, 막대는 충전 진행도
       const F=CFG.food, fl=foodLeft(sh);
       b.disabled=sh.food<=0||!sh.alive;
@@ -536,6 +544,7 @@ function renderRec(){
   const E=CFG.effects;
   $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
     먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 한 번에 가득 채워져요.<br><br>
+    수영은 처음엔 ${CFG.actions.swim.cdMin}분을 쉬어야 하지만, 수영할 때마다 쉬는 시간이 ${CFG.actions.swim.cdStepMin}분씩 줄어 최소 ${CFG.actions.swim.cdFloorMin}분까지 짧아져요.<br><br>
     가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}이 생겨 스탯이 떨어져요.`;
 }
 
