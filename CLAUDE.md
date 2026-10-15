@@ -17,28 +17,28 @@
 
 ## 작업 방식 (사용자와 합의된 규칙)
 
-- 사용자가 "배탈 확률 12%로"처럼 말하면 `index.html`의 `DEFAULTS` 값을 고쳐 커밋하고 `main`에 push한다.
-- 밸런스 값은 **코드에 배포된 값만** 쓴다. 관리자 탭은 제거했다. 브라우저에 남은 옛 설정(`S.cfg`)은 로드 시 무시하고 지운다.
+- 사용자가 "배탈 확률 12%로"처럼 말하면 **`server/src/game.js`의 `CFG`** 값을 고쳐 커밋하고 `main`에 push한다. Cloudflare가 서버를 다시 배포하면(1~2분) 모든 플레이어 화면에 다음 접속부터 적용된다. 반영 확인은 `https://shark-keeper-api.shark-keeper.workers.dev/api/config`.
+- 밸런스 값은 **서버(`server/src/game.js`의 `CFG`) 한 곳에만** 있다. 화면(`index.html`)은 시작할 때 `GET /api/config`로 받아 `CFG`에 넣고(4초 제한), 받은 값을 localStorage `shark-keeper-cfg`에 보관해 서버에 닿지 않으면 그 값으로 실행한다. 보관값도 없으면 "바다에 연결하지 못했어요" 안내(`#ovCfg`, 다시 시도). `index.html`의 `DEFAULTS`에는 화면 전용 값(`brandName`)만, `API_BASE`는 서버 주소. 관리자 탭은 제거했고 브라우저의 옛 설정(`S.cfg`)은 무시하고 지운다.
 - UI 문구는 한국어. 모바일 세로 화면 우선, 밝은 바다 블루 톤.
 - 커밋 작성자는 `Claude <noreply@anthropic.com>`.
 - push 후 https://bukanggochi.github.io/ 를 열어 반영됐는지 확인한다.
 
-## 현재 게임 규칙 (index.html의 `DEFAULTS`)
+## 현재 게임 규칙 (`server/src/game.js`의 `CFG`)
 
 - 시작 30cm, 최상 상태 하루 최대 +3cm, 몸집이 클수록 완만히 감속 (`sizeDamp` 250)
 - 성장 효율 = `(0.2 + 0.8*평균/100) * (0.5 + 0.5*최소/100) * (1 - 똥개수*8%)`, 배부름 10 미만이면 성장 정지
 - 시간당 감소: 배부름 4.2 / 운동 3.4 / 애정 3.0. 오프라인 시간은 10분 단위 구간 시뮬레이션으로 정산
-- 먹이 충전(`DEFAULTS.food`): 최대 10개, 10개 미만이면 10분마다 1개 충전. 먹이 1회에 1개 소모, 쿨타임 없음
+- 먹이 충전(`CFG.food`): 최대 10개, 10개 미만이면 10분마다 1개 충전. 먹이 1회에 1개 소모, 쿨타임 없음
 - 행동: 먹이(배부름+10, 먹이 1개) / 수영(운동+10, 배부름-5) / 쓰다듬기(애정+10, 연속 시 감쇠, 3분, 시간당 6회) / 청소(똥 1개당 애정+5)
 - 수영 쿨타임: 첫 수영 후 45분, 수영할 때마다 1분씩 줄어 최소 5분 (상어별 수영 횟수 `sh.swimN`, 새 상어면 다시 45분부터)
 - 똥: 1.5시간마다 생성(상어 나이 기준 타이머, 청소해도 초기화 안 됨), 최대 5개, 생성 시점 배부름 5 이하면 건너뜀
 - 배탈 중에는 똥 타이머가 2배속(`poopSickMul`) — 배탈 5분이면 타이머 10분 진행
-- 병(`DEFAULTS.illness`, 상어별 `sh.ill`, `sh.ill.cause`): 두 가지 원인 — ① 똥이 4개째 생기는 순간(`poop`) ② 배부름 10 미만이 연속 3시간(`hunger`, `sh.lowSatH`, 10 이상이 되면 초기화). 이미 아프면 무시. 굶주림 병은 쓰다듬기 진행도 5 **+ 배부름 30 이상**이 모두 충족돼야 완치(먹이로 30을 넘기는 순간에도 완치 확인, 라벨 `굶주림 병`). 진행도가 꽉 찬 뒤 쓰다듬기는 기한을 늘리지 않음. 시간 제한 없이 쓰다듬기 치료 진행도 5가 되면 완치 — 똥이 있으면 1회=0.5. 아픈 동안 쓰다듬기는 애정 0, 완치 시 애정 +30. 손물림이 나면 그 쓰다듬기는 진행도 없음. 발병 후 18시간(`deathH`) 안에 못 고치면 사망("병을 이겨내지 못했어요"), 치료 진행도 0.5마다 사망 시각 +1시간(`extendHPerProg` 2 = 진행도 1당 2시간, `sh.ill.deadline`) — 마지막 청소 후 약 22.5~24시간에 사망하는 구조. 상단 라벨 `🤒 병 1.5/5 · 남은시간`, 쓰다듬기 버튼 `치료 x/5`, 상어는 질끈 감은 눈·체온계·빨간 볼·이마 그늘선(얼굴 우선순위: 손물림 > 병 > 배탈)
+- 병(`CFG.illness`, 상어별 `sh.ill`, `sh.ill.cause`): 두 가지 원인 — ① 똥이 4개째 생기는 순간(`poop`) ② 배부름 10 미만이 연속 3시간(`hunger`, `sh.lowSatH`, 10 이상이 되면 초기화). 이미 아프면 무시. 굶주림 병은 쓰다듬기 진행도 5 **+ 배부름 30 이상**이 모두 충족돼야 완치(먹이로 30을 넘기는 순간에도 완치 확인, 라벨 `굶주림 병`). 진행도가 꽉 찬 뒤 쓰다듬기는 기한을 늘리지 않음. 시간 제한 없이 쓰다듬기 치료 진행도 5가 되면 완치 — 똥이 있으면 1회=0.5. 아픈 동안 쓰다듬기는 애정 0, 완치 시 애정 +30. 손물림이 나면 그 쓰다듬기는 진행도 없음. 발병 후 18시간(`deathH`) 안에 못 고치면 사망("병을 이겨내지 못했어요"), 치료 진행도 0.5마다 사망 시각 +1시간(`extendHPerProg` 2 = 진행도 1당 2시간, `sh.ill.deadline`) — 마지막 청소 후 약 22.5~24시간에 사망하는 구조. 상단 라벨 `🤒 병 1.5/5 · 남은시간`, 쓰다듬기 버튼 `치료 x/5`, 상어는 질끈 감은 눈·체온계·빨간 볼·이마 그늘선(얼굴 우선순위: 손물림 > 병 > 배탈)
 - 똥이 1개라도 있으면 먹이·수영·쓰다듬기 회복량 절반(`poopGainMul` 0.5). 수영의 배부름 소모·악효과 감소치는 그대로
 - 사망: 배부름 0 누적 24시간, 세 스탯 모두 0 누적 8시간, 또는 병 기한 초과
 - 광고 보상(목업): 하루 3회, 먹이를 최대치(10개)까지 채움. 먹이가 가득 차 있으면 광고 버튼 비활성. 성장 배수 없음
 
-### 돌봄 악효과 (`DEFAULTS.effects`)
+### 돌봄 악효과 (`CFG.effects`)
 
 | 행동 | 악효과 | 확률 | 감소치 | keepGain |
 |---|---|---|---|---|
@@ -48,7 +48,7 @@
 
 `keepGain: false`면 악효과가 날 때 그 행동의 회복은 적용하지 않는다.
 
-악효과는 즉시 깎지 않고 **상태 이상**이 된다 (`DEFAULTS.effectDurMin` 5분, 상어별 `sh.ail`):
+악효과는 즉시 깎지 않고 **상태 이상**이 된다 (`CFG.effectDurMin` 5분, 상어별 `sh.ail`):
 - 지속 시간 동안 감소치가 일정한 속도로 서서히 빠진다(정산 `tick`에서 구간 겹침만큼). 같은 상태가 다시 걸리면 남은 감소치에 새 감소치를 더해 시간을 다시 5분으로.
 - 육성 화면 상단(생존일·순위 칩 아래)에 아이콘 라벨 + 남은 시간(분:초) 표시.
 - 상어 모습(`sharkSVG`의 `ail` 인자): 배탈 = 홀쭉한 배·반쯤 감긴 눈·다크서클·창백한 초록빛, 타박상 = 반창고 여러 개·눈가 보라색 멍, 손물림 = 걱정 눈썹·글썽이는 눈·홍조(미안한 표정). 얼굴 우선순위는 손물림 > 배탈 > 시무룩 > 보통이고, 반창고·멍·홀쭉한 배는 겹쳐 그린다.
@@ -67,7 +67,7 @@
    - 무료 플랜 기준(2026-10 확인): Workers 하루 요청 10만·요청당 CPU 10ms, D1 하루 읽기 500만 행·쓰기 10만 행·저장 5GB. 2026-09부터 D1 한도 초과 시 쿼리 에러(UTC 자정=한국 오전 9시 해제). DAU 약 500~1,000명까지 무료로 예상. PHP 불가라 Laravel 대신 Workers(JS).
    - 순서: ① 사용자가 Cloudflare 계정 생성 + 배포 연결 ② `server/` 폴더에 Workers + D1 프로젝트(스키마, API: 상어 조회·생성/행동/랭킹, `settle`·`tick`·`act` 로직을 서버로 이전, 중복 요청 방지) ③ wrangler 로컬 모드로 테스트 ④ 화면을 API 사용으로 전환(처음엔 기기별 게스트 토큰, 기존 localStorage 상어 서버로 이전) ⑤ 공유 랭킹 연결, `makeRivals`·시간 빨리 감기 제거
    - 배포 연결은 **Cloudflare Workers Builds(GitHub 앱 연동)**로 결정: Cloudflare가 `main` push를 감지해 `server/`를 빌드·배포한다(API 토큰·GitHub Secrets 불필요). Worker 이름은 `shark-keeper-api`이고 `server/wrangler.jsonc`의 `name`과 반드시 같아야 한다. 대시보드 설정: Root directory `server`, Deploy command `npx wrangler deploy`, Build watch paths `server/*`. 서버 CORS 허용 주소는 `server/src/index.js`의 `ALLOWED_ORIGINS`. 토큰·비밀값은 절대 코드에 넣지 않는다(필요하면 `wrangler secret`).
-   - **연결 완료(2026-10-15)**: API 주소 `https://shark-keeper-api.shark-keeper.workers.dev` (`/health`가 `{ok:true, db:true}`면 Worker·D1 정상). D1 데이터베이스 `shark-keeper`(ID는 `server/wrangler.jsonc`, 바인딩 `DB`, 마이그레이션 폴더 `server/migrations`). Cloudflare 빌드가 Cloning 단계에서 실패하면 대개 일시 오류라 대시보드에서 Retry build.
+   - **연결 완료(2026-10-15)**: API 주소 `https://shark-keeper-api.shark-keeper.workers.dev` (`/health`가 `{ok:true, db:true}`면 Worker·D1 정상). D1 데이터베이스 `shark-keeper`(ID는 `server/wrangler.jsonc`, 바인딩 `DB`, 테이블은 `server/src/schema.js`가 자동 생성). Cloudflare 빌드가 Cloning 단계에서 실패하면 대개 일시 오류라 대시보드에서 Retry build.
    - `server/`도 `_config.yml`의 Pages 제외 목록에 추가한다.
 3. 스토어 앱: **Flutter WebView로 결정**. 래퍼 앱 프로젝트는 `flutter_app/` (iOS는 웹 래퍼 반려 위험 있음)
 
@@ -75,7 +75,7 @@
 
 - 주소: `https://shark-keeper-api.shark-keeper.workers.dev` — `main`에 push하면 Cloudflare Workers Builds가 `server/`만 배포(빌드 감시 경로 `server/*`).
 - 파일: `src/game.js`(게임 엔진: `CFG`·`settle`·`tick`·`act` — index.html 로직을 화면 코드 없이 옮김, 시간·난수를 인자로 받음), `src/index.js`(라우트·DB), `src/schema.js`(테이블 — 첫 요청 때 자동 생성, 바꿀 땐 `MIGRATIONS`에 단계 추가).
-- **밸런스 값은 지금 두 군데**: `index.html`의 `DEFAULTS`와 `server/src/game.js`의 `CFG`. 값을 바꿀 때 둘 다 고친다(화면을 서버 API로 전환한 뒤에는 화면이 `/api/config`를 쓰도록 바꿔 서버 한 곳으로 모은다).
+- **밸런스 값은 `src/game.js`의 `CFG` 한 곳**(화면은 `/api/config`로 받아 씀). 다만 화면의 정산·행동 로직(`settle`/`tick`/`act`)은 아직 `index.html`에도 있으니, 규칙(계산 방식)을 바꿀 때는 두 엔진을 함께 고치고 비교 테스트를 돌린다(화면이 서버 API로 전환되면 화면 쪽 로직은 표시용으로만 남는다).
 - 서버 엔진과 화면 로직이 같은지는 무작위·장기(5일) 시나리오로 비교 검증함. 엔진을 고치면 같은 비교를 다시 돌린다.
 - 인증: `POST /api/guest`가 기기별 게스트 토큰(`sk_...`)을 한 번만 내려주고, 이후 `Authorization: Bearer <토큰>`. DB에는 토큰의 SHA-256만 저장.
 - 상태를 바꾸는 요청은 `reqId`(8~64자, 영문·숫자·`_-`)를 함께 보내면 같은 요청이 두 번 와도 한 번만 처리하고 처음 응답을 돌려준다(`replay: true`). 동시 요청은 상어 행의 `version`으로 충돌을 막고 최대 5번 재시도, 그래도 안 되면 409 `busy`.

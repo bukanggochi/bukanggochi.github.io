@@ -251,6 +251,15 @@ h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:16px 0 4px
   </div>
 </div>
 
+<div class="overlay" id="ovCfg" hidden>
+  <div class="sheet">
+    <div style="font-size:54px">📡</div>
+    <h3>바다에 연결하지 못했어요</h3>
+    <p>처음 시작할 때는 인터넷 연결이 필요해요.<br>연결을 확인하고 다시 시도해 주세요.</p>
+    <button class="big" id="cfgRetry">다시 시도</button>
+  </div>
+</div>
+
 <div class="overlay" id="ovAd" hidden>
   <div class="sheet">
     <h3>광고 재생 중</h3>
@@ -261,43 +270,16 @@ h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:16px 0 4px
 
 <script>
 /* =========================================================
-   게임 설정값 — 배포된 이 값만 사용한다.
-   밸런스를 바꾸려면 여기 숫자를 고쳐서 다시 배포하면 모든 플레이어에게 적용된다.
+   게임 설정값(밸런스)은 서버에 있다 — server/src/game.js의 CFG.
+   화면은 시작할 때 GET /api/config로 받아 쓰고, 마지막으로 받은 값을 브라우저에 보관해
+   서버에 닿지 않을 때(오프라인 등) 그 값으로 실행한다.
+   여기에는 화면 전용 값(브랜드명, API 주소)만 둔다.
    ========================================================= */
 const DEFAULTS = {
   brandName: '부캉이 키우기',
-  startLen: 30, maxDailyGrowth: 3, sizeDamp: 250, noGrowthBelowSatiety: 10,
-  decayPerH: { satiety: 4.2, exercise: 3.4, affection: 3.0 },
-  poopEveryH: 1.5, poopMax: 5, poopAffDecay: 0.6, poopGrowthPenaltyPct: 8,
-  poopSickMul: 2,      // 배탈 중 똥 타이머 배속
-  poopGainMul: 0.5,    // 똥이 있을 때 청소 외 행동(먹이·수영·쓰다듬기)의 회복량 배율
-  // 병: 똥이 poopAt개째 쌓이는 순간 걸린다. 쓰다듬기 petsToCure번(똥이 있으면 1번=poopGainMul번)으로 낫고,
-  // 아픈 동안 쓰다듬기는 애정이 오르지 않으며, 나으면 애정 +cureAffection
-  // deathH시간 안에 못 고치면 사망. 치료 진행도 1마다 사망까지 남은 시간 +extendHPerProg시간 (0.5당 1시간)
-  illness: { name: '병', poopAt: 4, petsToCure: 5, cureAffection: 30, deathH: 18, extendHPerProg: 2,
-    // 굶주림 병: 배부름 hungerBelow 미만이 hungerH시간 이어지면 걸린다. 쓰다듬기 petsToCure번 + 배부름 cureSatiety 이상이어야 낫는다
-    hungerBelow: 10, hungerH: 3, cureSatiety: 30 },
-  starveDeathH: 24, allZeroDeathH: 8, stepMin: 10, maxSettleDays: 14,
-  actions: {
-    feed:  { cdMin: 0,  gain: 10 },   // 쿨타임 대신 먹이 개수(food)로 제한
-    // 수영 쿨타임: 첫 수영 후 cdMin분, 이후 수영할 때마다 cdStepMin분씩 줄어 cdFloorMin분까지
-    swim:  { cdMin: 45, cdStepMin: 1, cdFloorMin: 5, gain: 10, satietyCost: 5 },
-    pet:   { cdMin: 3,  gain: 10, perHourCap: 6 },
-    clean: { cdMin: 0,  affPerPoop: 5 }
-  },
-  // 악효과: chance(%) 확률로 발생, keepGain=정상 효과도 함께 적용할지
-  // 걸리면 effectDurMin분 동안 상태 이상(상단 라벨 + 상어 모습 변화)이 되고, 그동안 감소치(점)가 서서히 빠진다
-  effectDurMin: 5,
-  effects: {
-    feed: { name: '배탈',   chance: 8,  satiety: 15, exercise: 0,  affection: 5,  keepGain: false },
-    swim: { name: '타박상', chance: 10, satiety: 0,  exercise: 15, affection: 5,  keepGain: false },
-    pet:  { name: '손물림', chance: 6,  satiety: 0,  exercise: 0,  affection: 20, keepGain: false }
-  },
-  // 먹이 충전: 최대 max개, 가득 차 있지 않으면 regenMin분마다 1개씩 충전
-  food: { max: 10, regenMin: 10 },
-  adDaily: 3,   // 광고 1회 = 먹이를 최대치까지 채움 (하루 횟수 제한)
-  stages: [ [0,'아기'], [100,'성장기'], [200,'대형'], [300,'거대'] ]
 };
+const API_BASE = 'https://shark-keeper-api.shark-keeper.workers.dev';
+const CFG_KEY = 'shark-keeper-cfg';
 const clone = o => JSON.parse(JSON.stringify(o));
 const getP = (o,p) => p.split('.').reduce((a,k)=>a&&a[k], o);
 
@@ -316,7 +298,7 @@ function save(){ mem=S; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catc
 function fresh(){ return { offsetMs:0, epoch:Date.now(), shark:null, graves:[], bestLen:0, bestName:'', ads:{day:'',used:0}, rivals:makeRivals() }; }
 
 let S = load() || fresh();
-const CFG = clone(DEFAULTS);   // 브라우저에 남아 있는 옛 관리자 설정(S.cfg)은 읽지 않음
+let CFG = null;   // loadConfig()가 서버 설정 + 화면 값(DEFAULTS)으로 채운다. 옛 관리자 설정(S.cfg)은 읽지 않음
 delete S.cfg;
 const now = () => Date.now() + S.offsetMs;
 
@@ -755,19 +737,40 @@ function armButton(el,armText,fn){
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   curTab=b.dataset.tab; document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
   ['care','rank','rec'].forEach(v=>$('v-'+v).hidden=v!==curTab);
-  settle(); render();
+  if(CFG){ settle(); render(); }
 });
 function seg(a,b,onA,onB){ a.onclick=()=>{a.setAttribute('aria-pressed',true);b.setAttribute('aria-pressed',false);onA();}; b.onclick=()=>{b.setAttribute('aria-pressed',true);a.setAttribute('aria-pressed',false);onB();}; }
 seg($('rkAlive'),$('rkAll'),()=>{rkTab='alive';renderRank();},()=>{rkTab='all';renderRank();});
 
+/* 서버에서 게임 설정값 받기 (4초 안에 응답이 없으면 마지막으로 받아 둔 값 사용) */
+async function loadConfig(){
+  let cfg=null;
+  try{
+    const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),4000);
+    const r=await fetch(API_BASE+'/api/config',{signal:ctl.signal,cache:'no-store'}); clearTimeout(tm);
+    const j=await r.json(); if(j&&j.ok&&j.config){ cfg=j.config; try{ localStorage.setItem(CFG_KEY,JSON.stringify(cfg)); }catch(e){} }
+  }catch(e){}
+  if(!cfg){ try{ cfg=JSON.parse(localStorage.getItem(CFG_KEY)||'null'); }catch(e){} }
+  return cfg ? { ...cfg, ...DEFAULTS } : null;
+}
+function showCfgError(){
+  const ov=$('ovCfg'); ov.hidden=false;
+  $('cfgRetry').onclick=()=>{ ov.hidden=true; boot(); };
+}
+
 /* boot */
 bubbles();
-if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); }
-else showStart(false);
-setInterval(()=>{ if(S.shark&&S.shark.alive){ settle(); render(); } },15000);
-setInterval(()=>{ if(S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||lastAilKey||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
+async function boot(){
+  CFG=await loadConfig();
+  if(!CFG) return showCfgError();
+  if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); }
+  else showStart(false);
+}
+boot();
+setInterval(()=>{ if(CFG&&S.shark&&S.shark.alive){ settle(); render(); } },15000);
+setInterval(()=>{ if(CFG&&S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||lastAilKey||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
 // 앱을 다시 열었을 때(백그라운드 → 화면) 지난 시간을 바로 정산
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&S.shark&&S.shark.alive){ settle(); render(); } });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&CFG&&S.shark&&S.shark.alive){ settle(); render(); } });
 
 /* PWA: 홈 화면 설치·오프라인 실행용 서비스 워커 */
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
