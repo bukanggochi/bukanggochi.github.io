@@ -83,7 +83,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .poop{position:absolute;bottom:18px;font-size:22px;z-index:2;animation:plop .4s ease}
 @keyframes plop{from{transform:translateY(-30px);opacity:0}}
 .say{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:5;background:var(--card);padding:6px 12px;border-radius:14px;font-size:14px;max-width:calc(100% - 100px);text-align:center;box-shadow:0 3px 0 rgba(13,53,87,.15);transition:opacity .3s}
-.toast{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:6;background:var(--bad);color:#fff;font-family:var(--f-display);font-size:14px;padding:6px 14px;border-radius:999px;white-space:nowrap;transition:opacity .3s,translate .3s}
+.toast{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:6;background:var(--bad);color:#fff;font-family:var(--f-display);font-size:14px;padding:6px 14px;border-radius:16px;width:max-content;max-width:calc(100% - 24px);text-align:center;line-height:1.35;transition:opacity .3s,translate .3s}
 .toast[hidden]{display:block!important;opacity:0;translate:0 10px;pointer-events:none}
 .fx{position:absolute;z-index:6;pointer-events:none;font-size:22px;animation:float 1.2s ease-out forwards}
 @keyframes float{to{transform:translateY(-70px) scale(1.3);opacity:0}}
@@ -274,7 +274,9 @@ const DEFAULTS = {
   // 병: 똥이 poopAt개째 쌓이는 순간 걸린다. 쓰다듬기 petsToCure번(똥이 있으면 1번=poopGainMul번)으로 낫고,
   // 아픈 동안 쓰다듬기는 애정이 오르지 않으며, 나으면 애정 +cureAffection
   // deathH시간 안에 못 고치면 사망. 치료 진행도 1마다 사망까지 남은 시간 +extendHPerProg시간 (0.5당 1시간)
-  illness: { name: '병', poopAt: 4, petsToCure: 5, cureAffection: 30, deathH: 18, extendHPerProg: 2 },
+  illness: { name: '병', poopAt: 4, petsToCure: 5, cureAffection: 30, deathH: 18, extendHPerProg: 2,
+    // 굶주림 병: 배부름 hungerBelow 미만이 hungerH시간 이어지면 걸린다. 쓰다듬기 petsToCure번 + 배부름 cureSatiety 이상이어야 낫는다
+    hungerBelow: 10, hungerH: 3, cureSatiety: 30 },
   starveDeathH: 24, allZeroDeathH: 8, stepMin: 10, maxSettleDays: 14,
   actions: {
     feed:  { cdMin: 0,  gain: 10 },   // 쿨타임 대신 먹이 개수(food)로 제한
@@ -363,7 +365,10 @@ function tick(sh,h,at){
   // 똥 타이머: 배탈 중에는 poopSickMul배 빠르게 흐른다 (5분 배탈 = 10분 진행)
   sh.poopT+=h+sickH*(CFG.poopSickMul-1);
   while(sh.poopT>=CFG.poopEveryH){ sh.poopT-=CFG.poopEveryH; if(sh.poop<CFG.poopMax&&sh.satiety>5){ sh.poop++;
-      if(sh.poop>=CFG.illness.poopAt&&!sh.ill) sh.ill={ since:at, prog:0, seen:false, deadline:at+CFG.illness.deathH*36e5 }; } }
+      if(sh.poop>=CFG.illness.poopAt&&!sh.ill) startIll(sh,at,'poop'); } }
+  // 굶주림 병: 배부름이 기준 미만인 시간이 이어지면 (기준 이상이 되면 초기화)
+  sh.lowSatH = sh.satiety<CFG.illness.hungerBelow ? (sh.lowSatH||0)+h : 0;
+  if(sh.lowSatH>=CFG.illness.hungerH&&!sh.ill) startIll(sh,at,'hunger');
   sh.starveH = sh.satiety<=0 ? sh.starveH+h : Math.max(0,sh.starveH-h*2);
   sh.zeroH = (sh.satiety<=0&&sh.exercise<=0&&sh.affection<=0) ? sh.zeroH+h : 0;
   if(sh.starveH>=CFG.starveDeathH) die(sh,at,'배고픔을 너무 오래 참았어요');
@@ -372,6 +377,16 @@ function tick(sh,h,at){
     if(!sh.ill.deadline) sh.ill.deadline=sh.ill.since+CFG.illness.deathH*36e5;   // 이전 저장 데이터
     if(at>=sh.ill.deadline) die(sh,sh.ill.deadline,`${CFG.illness.name}을 이겨내지 못했어요`);
   }
+}
+/* 병: cause = 'poop'(똥 4개째) | 'hunger'(굶주림) */
+function startIll(sh,at,cause){ sh.ill={ since:at, prog:0, seen:false, cause, deadline:at+CFG.illness.deathH*36e5 }; }
+const illHunger=sh=>!!(sh.ill&&sh.ill.cause==='hunger');
+// 완치 조건: 쓰다듬기 진행도 충족 + (굶주림 병이면) 배부름 기준 이상
+function cureIfReady(sh){
+  const I=CFG.illness; if(!sh.ill||sh.ill.prog<I.petsToCure) return false;
+  if(illHunger(sh)&&sh.satiety<I.cureSatiety) return false;
+  sh.ill=null; sh.affection=clamp(sh.affection+I.cureAffection);
+  toast(`${I.name}이 나았어요! 애정 +${I.cureAffection}`); return true;
 }
 function die(sh,at,reason){
   sh.alive=false; sh.diedAt=at; sh.reason=reason; bumpBest(sh);
@@ -424,14 +439,18 @@ function act(a){
       if(a==='pet'&&!sh.ill){ const n=sh.pets.length; sh.affection=clamp(sh.affection+A.gain*Math.pow(0.7,n)*m); msg=n<2?pick(['헤헤, 간지러워요','좋아요!','더 쓰다듬어 줘요']):'고마워요 (조금 덜 신나요)'; fx='💗'; cls='wiggle'; }
       if(m<1) msg=pick(['똥 냄새 때문에 집중이 안 돼요…','먼저 청소해 주면 좋겠어요','으… 주변이 더러워서 반만 신나요']);
       if(a==='pet'&&sh.ill){   // 치료: 애정은 오르지 않고 진행도만 쌓인다 (똥이 있으면 반만)
-        const I=CFG.illness; sh.ill.prog=Math.min(I.petsToCure,sh.ill.prog+m); cls='wiggle';
-        sh.ill.deadline=(sh.ill.deadline||sh.ill.since+I.deathH*36e5)+m*I.extendHPerProg*36e5;   // 치료할수록 버틸 시간 연장
-        if(sh.ill.prog>=I.petsToCure){
-          sh.ill=null; sh.affection=clamp(sh.affection+I.cureAffection);
-          msg='다 나았어요! 정말 고마워요'; fx='💖'; toast(`${I.name}이 나았어요! 애정 +${I.cureAffection}`);
-        } else {
-          msg = (m<1 ? `똥 때문에 반만 나았어요… (${fmtProg(sh.ill.prog)}/${I.petsToCure})` : `끙… 조금 나아졌어요 (${fmtProg(sh.ill.prog)}/${I.petsToCure})`)+` · 버틸 시간 +${fmtProg(m*I.extendHPerProg)}시간`; fx='🩺';
+        const I=CFG.illness, add=Math.max(0,Math.min(m,I.petsToCure-sh.ill.prog)); cls='wiggle';
+        sh.ill.prog+=add;
+        sh.ill.deadline=(sh.ill.deadline||sh.ill.since+I.deathH*36e5)+add*I.extendHPerProg*36e5;   // 실제로 채운 진행도만큼만 연장
+        if(cureIfReady(sh)){ msg='다 나았어요! 정말 고마워요'; fx='💖'; }
+        else if(sh.ill.prog>=I.petsToCure){ msg=`쓰다듬기는 충분해요! 배부름 ${I.cureSatiety} 이상 먹으면 나을 것 같아요 (지금 ${Math.round(sh.satiety)})`; fx='🩺'; }
+        else {
+          msg = (m<1 ? `똥 때문에 반만 나았어요… (${fmtProg(sh.ill.prog)}/${I.petsToCure})` : `끙… 조금 나아졌어요 (${fmtProg(sh.ill.prog)}/${I.petsToCure})`)+` · 버틸 시간 +${fmtProg(add*I.extendHPerProg)}시간`; fx='🩺';
         }
+      }
+      if(a==='feed'&&illHunger(sh)){
+        if(cureIfReady(sh)){ msg='배도 부르고 다 나았어요! 고마워요'; fx='💖'; }
+        else if(sh.satiety<CFG.illness.cureSatiety) msg=`조금 기운이 나요… (배부름 ${Math.round(sh.satiety)}/${CFG.illness.cureSatiety})`;
       }
     }
     if(a==='pet') sh.pets.push(t);
@@ -591,16 +610,18 @@ function render(){
   const mood=(Math.min(sh.satiety,sh.exercise,sh.affection)<20||sh.poop>=3)?'sad':'ok';
   // 상태 이상 라벨: 걸린 종류가 바뀔 때만 다시 그리고(등장 애니메이션), 남은 시간은 매초 갱신
   const ails=sh.alive?activeAils(sh):{};
-  const look = (sh.alive&&sh.ill) ? {...ails, ill:1} : ails;   // 상어 모습용: 시간제 상태 이상 + 병
+  const look = (sh.alive&&sh.ill) ? {...ails, ill:1, ['ill_'+(sh.ill.cause||'poop')]:1} : ails;   // 상어 모습용: 시간제 상태 이상 + 병
   const ailKey=Object.keys(look).sort().join(',');
   if(ailKey!==lastAilKey){
-    $('ailChips').innerHTML=(look.ill?`<span class="chip ail num" data-ill title="${CFG.illness.name}"><span class="ic">🤒</span>${CFG.illness.name} <b></b></span>`:'')
+    $('ailChips').innerHTML=(look.ill?`<span class="chip ail num" data-ill title="${CFG.illness.name}"><span class="ic">🤒</span>${illHunger(sh)?'굶주림 '+CFG.illness.name:CFG.illness.name} <b></b></span>`:'')
       +Object.keys(ails).map(a=>`<span class="chip ail num" data-ail="${a}" title="${CFG.effects[a].name}"><span class="ic">${EFFECT_UI[a].icon}</span>${CFG.effects[a].name} <b></b></span>`).join('');
   }
   $('ailChips').querySelectorAll('[data-ail]').forEach(el=>{ el.querySelector('b').textContent=fmtSec(ails[el.dataset.ail].until-now()); });
   const illChip=$('ailChips').querySelector('[data-ill]');   // 병은 시간이 아니라 치료 진행도로 표시
   if(illChip&&sh.ill) illChip.querySelector('b').textContent=`${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure} · ${fmtSec(Math.max(0,(sh.ill.deadline||0)-now()))}`;
-  if(sh.alive&&sh.ill&&!sh.ill.seen){ sh.ill.seen=true; save(); setTimeout(()=>{ say('똥이 너무 많아서 아파요… 쓰다듬어 주세요'); toast(`${CFG.illness.name}에 걸렸어요! 쓰다듬기 ${CFG.illness.petsToCure}번으로 낫게 해 주세요`); },300); }
+  if(sh.alive&&sh.ill&&!sh.ill.seen){ sh.ill.seen=true; save(); const I=CFG.illness, hg=illHunger(sh);
+    setTimeout(()=>{ say(hg?'너무 배고파서 몸이 안 좋아요… 밥 주고 쓰다듬어 주세요':'똥이 너무 많아서 아파요… 쓰다듬어 주세요');
+      toast(hg?`굶주림 ${I.name}! 배부름 ${I.cureSatiety} + 쓰다듬기 ${I.petsToCure}번`:`${I.name}에 걸렸어요! 쓰다듬기 ${I.petsToCure}번으로 낫게 해 주세요`); },300); }
   if(st!==lastStage||mood!==lastMood||ailKey!==lastAilKey){
     $('sharkWrap').innerHTML=sharkSVG(st,mood,Math.round(150+Math.min(st,3)*22),look);
     $('sharkWrap').classList.toggle('sad',mood==='sad'&&!ailKey); lastStage=st; lastMood=mood; lastAilKey=ailKey;
@@ -608,8 +629,9 @@ function render(){
   document.querySelectorAll('.poop').forEach(p=>p.remove());
   for(let i=0;i<sh.poop;i++){ const p=document.createElement('span'); p.className='poop'; p.textContent='💩'; p.style.left=(18+i*14)+'%'; $('tank').appendChild(p); }
   const al=[];
-  if(sh.ill){ const I=CFG.illness, left=I.petsToCure-sh.ill.prog;
-    al.push(['bad',`${I.name}에 걸렸어요. ${fmtCd(Math.max(0,sh.ill.deadline-now()))} 안에 쓰다듬기 ${fmtProg(left)}번을 더 채워야 나아요(똥이 남아 있으면 1번이 0.5번). 쓰다듬을 때마다 버틸 시간이 늘어나요. 다 나으면 애정 +${I.cureAffection}!`]); }
+  if(sh.ill){ const I=CFG.illness, left=I.petsToCure-sh.ill.prog, by=fmtCd(Math.max(0,sh.ill.deadline-now()));
+    const need=[]; if(left>0) need.push(`쓰다듬기 ${fmtProg(left)}번`); if(illHunger(sh)&&sh.satiety<I.cureSatiety) need.push(`배부름 ${I.cureSatiety} 이상(지금 ${Math.round(sh.satiety)})`);
+    al.push(['bad',`${illHunger(sh)?'굶주림으로 ':''}${I.name}에 걸렸어요. ${by} 안에 ${need.join(' + ')}을 채워야 나아요(똥이 남아 있으면 쓰다듬기 1번이 0.5번). 쓰다듬을 때마다 버틸 시간이 늘어나요. 다 나으면 애정 +${I.cureAffection}!`]); }
   if(sh.starveH>0) al.push(['bad',`배고픔 한계까지 ${Math.max(0,CFG.starveDeathH-sh.starveH).toFixed(1)}시간 남았어요. 지금 먹이를 주세요!`]);
   else if(sh.satiety<25) al.push(['',`배가 많이 고파요. 배부름 ${CFG.noGrowthBelowSatiety} 아래로 떨어지면 성장이 멈춰요.`]);
   if(sh.poop>0) al.push([sh.poop>=3?'bad':'',`똥이 ${sh.poop}개 있어요. 청소 전까지 돌봄 효과가 절반이고, 성장이 ${Math.round(sh.poop*CFG.poopGrowthPenaltyPct)}% 느려져요.`]);
@@ -657,7 +679,7 @@ function renderRec(){
   const E=CFG.effects;
   $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
     먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 한 번에 가득 채워져요.<br><br>
-    똥은 ${CFG.poopEveryH}시간마다 생기고, 배탈 중에는 ${CFG.poopSickMul}배 빨리 생겨요. 똥이 있으면 먹이·수영·쓰다듬기 효과가 절반이 되니 먼저 청소해 주세요. 똥이 ${CFG.illness.poopAt}개째 쌓이면 ${CFG.illness.name}에 걸려요. 쓰다듬기 ${CFG.illness.petsToCure}번이면 낫는데(똥이 남아 있으면 1번이 0.5번), 아픈 동안은 쓰다듬어도 애정이 오르지 않고 다 나으면 애정이 ${CFG.illness.cureAffection} 올라요. ${CFG.illness.deathH}시간 안에 낫지 못하면 떠나게 되지만, 치료 0.5번마다 버틸 시간이 ${CFG.illness.extendHPerProg/2}시간씩 늘어나요.<br><br>
+    똥은 ${CFG.poopEveryH}시간마다 생기고, 배탈 중에는 ${CFG.poopSickMul}배 빨리 생겨요. 똥이 있으면 먹이·수영·쓰다듬기 효과가 절반이 되니 먼저 청소해 주세요. 똥이 ${CFG.illness.poopAt}개째 쌓이면 ${CFG.illness.name}에 걸려요. 쓰다듬기 ${CFG.illness.petsToCure}번이면 낫는데(똥이 남아 있으면 1번이 0.5번), 아픈 동안은 쓰다듬어도 애정이 오르지 않고 다 나으면 애정이 ${CFG.illness.cureAffection} 올라요. 배부름이 ${CFG.illness.hungerBelow} 아래로 ${CFG.illness.hungerH}시간 이어져도 ${CFG.illness.name}에 걸리는데, 이때는 배부름 ${CFG.illness.cureSatiety} 이상도 채워야 나아요. ${CFG.illness.deathH}시간 안에 낫지 못하면 떠나게 되지만, 치료 0.5번마다 버틸 시간이 ${CFG.illness.extendHPerProg/2}시간씩 늘어나요.<br><br>
     수영은 처음엔 ${CFG.actions.swim.cdMin}분을 쉬어야 하지만, 수영할 때마다 쉬는 시간이 ${CFG.actions.swim.cdStepMin}분씩 줄어 최소 ${CFG.actions.swim.cdFloorMin}분까지 짧아져요.<br><br>
     가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}에 걸려요. 걸리면 ${CFG.effectDurMin}분 동안 상어 모습이 바뀌고 스탯이 서서히 떨어져요.`;
 }
@@ -685,7 +707,7 @@ function bubbles(){ for(let i=0;i<7;i++){ const b=document.createElement('span')
 /* flows */
 function newShark(name){
   const t=now();
-  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], ail:{}, ill:null, rankOff:false };
+  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], ail:{}, ill:null, lowSatH:0, rankOff:false };
   save(); lastStage=-1; lastAilKey=null; render(); say(`안녕! 나는 ${name}이에요`);
 }
 function showStart(again){
