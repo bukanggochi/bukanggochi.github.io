@@ -1,4 +1,5 @@
 # GitHub Pages: 앱 소스와 작업 문서는 배포 사이트에 올리지 않는다
 exclude:
   - flutter_app
+  - server
   - CLAUDE.md
