@@ -186,7 +186,7 @@ h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:16px 0 4px
       <div class="stats" id="stats"></div>
       <div id="alertBox"></div>
       <div class="actions" id="actions"></div>
-      <div class="ad"><span>📺 광고 보고 먹이 한 그릇 <span class="num" id="adLeft">(오늘 3/3)</span><br><small style="color:var(--ink-soft)">배부름만 채워져요. 성장 배수는 없어요.</small></span><button id="adBtn">광고 보기</button></div>
+      <div class="ad"><span>📺 광고 보고 먹이 가득 채우기 <span class="num" id="adLeft">(오늘 3/3)</span><br><small style="color:var(--ink-soft)">먹이 개수만 채워져요. 성장 배수는 없어요.</small></span><button id="adBtn">광고 보기</button></div>
       <details class="dev"><summary>테스트 도구: 시간 빨리 감기</summary>
         <div class="devrow">
           <button class="btn-s" data-skip="1">+1시간</button><button class="btn-s" data-skip="6">+6시간</button><button class="btn-s" data-skip="12">+12시간</button><button class="btn-s" data-skip="24">+24시간</button><button class="btn-s" id="resetAll">게임 전체 초기화</button>
@@ -262,7 +262,7 @@ const DEFAULTS = {
   poopEveryH: 3, poopMax: 5, poopAffDecay: 0.6, poopGrowthPenaltyPct: 8,
   starveDeathH: 24, allZeroDeathH: 8, stepMin: 10, maxSettleDays: 14,
   actions: {
-    feed:  { cdMin: 30, gain: 30 },
+    feed:  { cdMin: 0,  gain: 30 },   // 쿨타임 대신 먹이 개수(food)로 제한
     swim:  { cdMin: 45, gain: 25, satietyCost: 6 },
     pet:   { cdMin: 3,  gain: 12, perHourCap: 6 },
     clean: { cdMin: 0,  affPerPoop: 5 }
@@ -273,7 +273,9 @@ const DEFAULTS = {
     swim: { name: '타박상', chance: 10, satiety: 0,  exercise: 15, affection: 5,  keepGain: false },
     pet:  { name: '손물림', chance: 6,  satiety: 0,  exercise: 0,  affection: 20, keepGain: false }
   },
-  adDaily: 3, adSatiety: 20,
+  // 먹이 충전: 최대 max개, 가득 차 있지 않으면 regenMin분마다 1개씩 충전
+  food: { max: 10, regenMin: 10 },
+  adDaily: 3,   // 광고 1회 = 먹이를 최대치까지 채움 (하루 횟수 제한)
   stages: [ [0,'아기'], [100,'성장기'], [200,'대형'], [300,'거대'] ]
 };
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -311,12 +313,22 @@ function efficiency(sh){
 const growthPerDay = sh => CFG.maxDailyGrowth*efficiency(sh)/(1+Math.max(0,sh.len-CFG.startLen)/CFG.sizeDamp);
 function settle(){
   const sh=S.shark; if(!sh||!sh.alive) return;
+  regenFood(sh);
   const t=now(); const step=CFG.stepMin*6e4;
   let from=Math.max(sh.lastSim, t-CFG.maxSettleDays*864e5);
   while(from+step<=t && sh.alive){ tick(sh,CFG.stepMin/60,from+step); from+=step; }
   const rest=(t-from)/36e5; if(rest>0&&sh.alive) tick(sh,rest,t);
   sh.lastSim=t; bumpBest(sh); save();
 }
+/* 먹이 충전: foodT = 다음 1개를 충전하기 시작한 시각. 가득 차 있으면 충전 시계는 멈춰 있다 */
+function regenFood(sh){
+  const F=CFG.food, t=now(), iv=F.regenMin*6e4;
+  if(sh.food==null){ sh.food=F.max; sh.foodT=t; }          // 이전 저장 데이터
+  if(sh.food>=F.max){ sh.food=F.max; sh.foodT=t; return; }
+  const n=Math.floor((t-sh.foodT)/iv);
+  if(n>0){ sh.food=Math.min(F.max,sh.food+n); sh.foodT = sh.food>=F.max ? t : sh.foodT+n*iv; }
+}
+const foodLeft=sh=>sh.food>=CFG.food.max?0:Math.max(0,sh.foodT+CFG.food.regenMin*6e4-now());
 function bumpBest(sh){ if(sh.len>S.bestLen){ S.bestLen=sh.len; S.bestName=sh.name; S.bestDays=daysAlive(sh); } }
 function tick(sh,h,at){
   const d=CFG.decayPerH;
@@ -351,8 +363,9 @@ function act(a){
   const A=CFG.actions[a], E=CFG.effects[a], t=now();
   let ok=false, msg='', fx='', cls='';
   if(a==='feed'){
-    if(sh.satiety>=95) msg='배불러서 더 못 먹어요';
-    else { ok=true; dropPellets(); }
+    if(sh.food<=0) msg='먹이가 다 떨어졌어요. 충전을 기다려 주세요';
+    else if(sh.satiety>=95) msg='배불러서 더 못 먹어요';
+    else { ok=true; sh.food--; dropPellets(); }
   } else if(a==='swim'){
     if(sh.satiety<A.satietyCost+2) msg='배고파서 헤엄칠 힘이 없어요';
     else ok=true;
@@ -481,10 +494,20 @@ function render(){
   if(sh.poop>=3) al.push(['',`똥이 ${sh.poop}개 쌓였어요. 성장이 ${Math.round(sh.poop*CFG.poopGrowthPenaltyPct)}% 느려지고 있어요.`]);
   $('alertBox').innerHTML=al.map(([c,t])=>`<div class="alert ${c}">${t}</div>`).join('');
   ACTS.forEach(([k])=>{ const b=$('a-'+k), left=cdLeft(k), cd=Math.max(1,CFG.actions[k].cdMin*6e4);
+    if(k==='feed'){   // 먹이: 남은 개수 + 다음 충전까지 남은 시간, 막대는 충전 진행도
+      const F=CFG.food, fl=foodLeft(sh);
+      b.disabled=sh.food<=0||!sh.alive;
+      b.querySelector('.cd').textContent= sh.food<F.max ? `${sh.food}/${F.max} · ${fmtCd(fl)}` : `${F.max}/${F.max}`;
+      b.querySelector('.fill').style.width= sh.food<F.max ? (100-fl/(F.regenMin*6e4)*100)+'%' : '0';
+      return;
+    }
     b.disabled=left>0||!sh.alive; b.querySelector('.cd').textContent= left>0?fmtCd(left):(k==='clean'&&sh.poop?`${sh.poop}개`:'가능');
     b.querySelector('.fill').style.width= left>0?(100-left/cd*100)+'%':'0'; });
   const today=new Date(now()).toDateString(); if(S.ads.day!==today) S.ads={day:today,used:0};
-  $('adLeft').textContent=`(오늘 ${Math.max(0,CFG.adDaily-S.ads.used)}/${CFG.adDaily})`; $('adBtn').disabled=S.ads.used>=CFG.adDaily||!sh.alive;
+  const foodFull=sh.food>=CFG.food.max;
+  $('adLeft').textContent=`(오늘 ${Math.max(0,CFG.adDaily-S.ads.used)}/${CFG.adDaily})`;
+  $('adBtn').disabled=S.ads.used>=CFG.adDaily||!sh.alive||foodFull;
+  $('adBtn').textContent=foodFull?'가득 참':'광고 보기';
   if(!sh.alive) showDeath();
 }
 const fmtCd=ms=>{ const m=Math.ceil(ms/6e4); return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`; };
@@ -509,6 +532,7 @@ function renderRec(){
     : '<p class="note" style="margin:0">아직 떠난 상어가 없어요. 이대로 쭉 지켜 주세요.</p>';
   const E=CFG.effects;
   $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
+    먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 한 번에 가득 채워져요.<br><br>
     가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}이 생겨 스탯이 떨어져요.`;
 }
 
@@ -524,7 +548,7 @@ function bubbles(){ for(let i=0;i<7;i++){ const b=document.createElement('span')
 /* flows */
 function newShark(name){
   const t=now();
-  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, starveH:0, zeroH:0, cd:{}, pets:[], rankOff:false };
+  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], rankOff:false };
   save(); lastStage=-1; render(); say(`안녕! 나는 ${name}이에요`);
 }
 function showStart(again){
@@ -549,10 +573,10 @@ function showDeath(){
 $('againBtn').onclick=()=>{ $('ovDeath').hidden=true; showStart(true); };
 
 $('adBtn').onclick=()=>{
-  if(S.ads.used>=CFG.adDaily) return;
+  if(S.ads.used>=CFG.adDaily||!S.shark||S.shark.food>=CFG.food.max) return;
   $('ovAd').hidden=false; const bar=$('adBar'); bar.style.transition='none'; bar.style.width='0';
   requestAnimationFrame(()=>requestAnimationFrame(()=>{ bar.style.transition='width 3s linear'; bar.style.width='100%'; }));
-  setTimeout(()=>{ $('ovAd').hidden=true; settle(); S.ads.used++; S.shark.satiety=clamp(S.shark.satiety+CFG.adSatiety); save(); burst('🍤'); say('광고 보상 먹이 도착!'); render(); },3050);
+  setTimeout(()=>{ $('ovAd').hidden=true; settle(); S.ads.used++; S.shark.food=CFG.food.max; S.shark.foodT=now(); save(); burst('🐟'); say(`먹이 ${CFG.food.max}개 가득 충전!`); render(); },3050);
 };
 
 document.querySelectorAll('[data-skip]').forEach(b=>b.onclick=()=>{ S.offsetMs+=(+b.dataset.skip)*36e5; settle(); render(); say(`${b.dataset.skip}시간이 흘렀어요`); });
@@ -582,7 +606,7 @@ bubbles();
 if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); }
 else showStart(false);
 setInterval(()=>{ if(S.shark&&S.shark.alive){ settle(); render(); } },15000);
-setInterval(()=>{ if(S.shark&&S.shark.alive&&curTab==='care'&&ACTS.some(([k])=>cdLeft(k)>0)) render(); },1000);
+setInterval(()=>{ if(S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
 // 앱을 다시 열었을 때(백그라운드 → 화면) 지난 시간을 바로 정산
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&S.shark&&S.shark.alive){ settle(); render(); } });
 
