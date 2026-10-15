@@ -271,6 +271,9 @@ const DEFAULTS = {
   poopEveryH: 1.5, poopMax: 5, poopAffDecay: 0.6, poopGrowthPenaltyPct: 8,
   poopSickMul: 2,      // 배탈 중 똥 타이머 배속
   poopGainMul: 0.5,    // 똥이 있을 때 청소 외 행동(먹이·수영·쓰다듬기)의 회복량 배율
+  // 병: 똥이 poopAt개째 쌓이는 순간 걸린다. 쓰다듬기 petsToCure번(똥이 있으면 1번=poopGainMul번)으로 낫고,
+  // 아픈 동안 쓰다듬기는 애정이 오르지 않으며, 나으면 애정 +cureAffection
+  illness: { name: '병', poopAt: 4, petsToCure: 5, cureAffection: 30 },
   starveDeathH: 24, allZeroDeathH: 8, stepMin: 10, maxSettleDays: 14,
   actions: {
     feed:  { cdMin: 0,  gain: 10 },   // 쿨타임 대신 먹이 개수(food)로 제한
@@ -358,7 +361,8 @@ function tick(sh,h,at){
     if(o>0){ for(const k in A.rate) sh[k]=clamp(sh[k]-A.rate[k]*o); if(a==='feed') sickH=o/36e5; } }
   // 똥 타이머: 배탈 중에는 poopSickMul배 빠르게 흐른다 (5분 배탈 = 10분 진행)
   sh.poopT+=h+sickH*(CFG.poopSickMul-1);
-  while(sh.poopT>=CFG.poopEveryH){ sh.poopT-=CFG.poopEveryH; if(sh.poop<CFG.poopMax&&sh.satiety>5) sh.poop++; }
+  while(sh.poopT>=CFG.poopEveryH){ sh.poopT-=CFG.poopEveryH; if(sh.poop<CFG.poopMax&&sh.satiety>5){ sh.poop++;
+      if(sh.poop>=CFG.illness.poopAt&&!sh.ill) sh.ill={ since:at, prog:0, seen:false }; } }
   sh.starveH = sh.satiety<=0 ? sh.starveH+h : Math.max(0,sh.starveH-h*2);
   sh.zeroH = (sh.satiety<=0&&sh.exercise<=0&&sh.affection<=0) ? sh.zeroH+h : 0;
   if(sh.starveH>=CFG.starveDeathH) die(sh,at,'배고픔을 너무 오래 참았어요');
@@ -412,8 +416,17 @@ function act(a){
       const m = sh.poop>0 ? CFG.poopGainMul : 1;   // 똥이 있으면 회복 반감
       if(a==='feed'){ sh.satiety=clamp(sh.satiety+A.gain*m); msg=pick(['냠냠! 맛있어요','오물오물…','최고의 정어리!']); fx='🐟'; cls='chomp'; }
       if(a==='swim'){ sh.exercise=clamp(sh.exercise+A.gain*m); sh.satiety=clamp(sh.satiety-A.satietyCost); msg=pick(['슝— 한 바퀴!','지느러미 운동 완료','더 빨라진 것 같아요']); fx='💨'; cls='dash'; }
-      if(a==='pet'){ const n=sh.pets.length; sh.affection=clamp(sh.affection+A.gain*Math.pow(0.7,n)*m); msg=n<2?pick(['헤헤, 간지러워요','좋아요!','더 쓰다듬어 줘요']):'고마워요 (조금 덜 신나요)'; fx='💗'; cls='wiggle'; }
+      if(a==='pet'&&!sh.ill){ const n=sh.pets.length; sh.affection=clamp(sh.affection+A.gain*Math.pow(0.7,n)*m); msg=n<2?pick(['헤헤, 간지러워요','좋아요!','더 쓰다듬어 줘요']):'고마워요 (조금 덜 신나요)'; fx='💗'; cls='wiggle'; }
       if(m<1) msg=pick(['똥 냄새 때문에 집중이 안 돼요…','먼저 청소해 주면 좋겠어요','으… 주변이 더러워서 반만 신나요']);
+      if(a==='pet'&&sh.ill){   // 치료: 애정은 오르지 않고 진행도만 쌓인다 (똥이 있으면 반만)
+        const I=CFG.illness; sh.ill.prog=Math.min(I.petsToCure,sh.ill.prog+m); cls='wiggle';
+        if(sh.ill.prog>=I.petsToCure){
+          sh.ill=null; sh.affection=clamp(sh.affection+I.cureAffection);
+          msg='다 나았어요! 정말 고마워요'; fx='💖'; toast(`${I.name}이 나았어요! 애정 +${I.cureAffection}`);
+        } else {
+          msg = m<1 ? `똥 때문에 반만 나았어요… (${fmtProg(sh.ill.prog)}/${I.petsToCure})` : `끙… 조금 나아졌어요 (${fmtProg(sh.ill.prog)}/${I.petsToCure})`; fx='🩺';
+        }
+      }
     }
     if(a==='pet') sh.pets.push(t);
     if(bad){
@@ -427,6 +440,7 @@ function act(a){
   say(msg); save(); render();
 }
 const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+const fmtProg=v=>(Math.round(v*10)/10).toString();
 
 /* 상태 이상 시작. 이미 같은 상태면 남은 감소치에 새 감소치를 더하고 시간을 다시 effectDurMin분으로 */
 function startAil(sh,a,E,t){
@@ -468,7 +482,7 @@ function sharkSVG(stage,mood,size,ail={}){
   // 단계별 색: 자랄수록 등이 깊은 바다색으로 진해진다 [등 위쪽, 등 아래쪽, 외곽선]
   const [top,mid,line]=[['#4b97d1','#86c8ee','#1d5c8f'],['#3d87c4','#74b9e6','#185384'],['#2f74b0','#62a8db','#134a78'],['#245f97','#5196cc','#0f3d66']][stage];
   const id='sk'+(sharkSVG.n=(sharkSVG.n||0)+1), ink='#0d2b45';
-  const sick=!!ail.feed, bruised=!!ail.swim, sorry=!!ail.pet;
+  const sick=!!ail.feed, bruised=!!ail.swim, sorry=!!ail.pet, ill=!!ail.ill;
   // 배탈이면 배가 홀쭉하게 들어간 몸통
   const body= sick ? 'M34 57 C60 40 100 27 138 33 C160 37 173 51 171 61 C169 71 150 80 112 81 C82 82 57 75 34 66 Z'
                    : 'M34 57 C60 40 100 27 138 33 C160 37 173 51 171 62 C169 75 150 89 112 91 C80 93 54 81 34 68 Z';
@@ -478,7 +492,7 @@ function sharkSVG(stage,mood,size,ail={}){
   const stroke=(w=2.4)=>`stroke="${ink}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
   const sweat='<path d="M133 30 q-4.5 6.5 0 9 q4.5 -2.5 0 -9z" fill="#d8f3ff" stroke="#5aa9d6" stroke-width="1.4"/>';
   // 얼굴: 미안함(손물림) > 헬쑥함(배탈) > 시무룩 > 보통
-  const face = sorry?'sorry' : sick?'sick' : mood==='sad'?'sad' : 'ok';
+  const face = sorry?'sorry' : ill?'ill' : sick?'sick' : mood==='sad'?'sad' : 'ok';
   let eye, mouth, cheek='<ellipse cx="152" cy="64" rx="5.5" ry="3.2" fill="#ff8fab" opacity=".55"/>', extra='';
   if(face==='sorry'){        // 눈썹 안쪽이 올라간 걱정 눈썹, 아래로 내리깐 눈, 오물거리는 입, 식은땀
     eye=`<circle cx="145.5" cy="51.5" r="${er}" fill="${ink}"/><path d="M${145.5-er*.8} ${51.5+er*.35} a${er*.8} ${er*.55} 0 0 0 ${er*1.6} 0" fill="#7fd0ff" opacity=".85"/>`
@@ -487,6 +501,11 @@ function sharkSVG(stage,mood,size,ail={}){
       +`<path d="M${145.5+er*.9} ${51.5+er*.7} q2.4 3.6 0 5.2 q-2.4 -1.6 0 -5.2z" fill="#9fe0ff" stroke="#4aa3d6" stroke-width="1"/>`;
     mouth=`<path d="M151 73.5 q2 -2.4 4 0 q2 2.4 4 0 q2 -2.4 4 0" ${stroke(2.1)}/>`;
     cheek='<ellipse cx="152" cy="64" rx="6.5" ry="3.6" fill="#ff7f9f" opacity=".75"/><path d="M148 62.5 l2 2.5 M151.5 62 l2 2.5 M155 62.5 l2 2.5" stroke="#e85a7d" stroke-width="1.1" stroke-linecap="round" opacity=".8"/>';
+    extra=sweat;
+  } else if(face==='ill'){   // 열병: 질끈 감은 눈(>), 끙끙 앓는 입, 열이 올라 빨간 볼, 식은땀
+    eye=`<path d="M${141-er*.2} ${45.5-er*.3} l${8+er*.4} ${4.5+er*.3} l${-8-er*.4} ${4.5+er*.3}" ${stroke(2.5)}/>`;
+    mouth=`<path d="M150 72.5 q3.5 -3 7 0" ${stroke(2.2)}/>`;
+    cheek='<ellipse cx="152" cy="63" rx="7.5" ry="4.2" fill="#ff5a6e" opacity=".55"/><ellipse cx="152" cy="63" rx="4" ry="2.2" fill="#ff3b55" opacity=".35"/>';
     extra=sweat;
   } else if(face==='sick'){  // 반쯤 감긴 눈 + 다크서클, 울렁이는 입, 창백한 초록빛, 식은땀
     // 처진 윗눈꺼풀 아래로 눈동자 아랫부분만 보이고, 눈 밑이 거뭇하다
@@ -509,6 +528,8 @@ function sharkSVG(stage,mood,size,ail={}){
   const plaster=(x,y,r,s=1)=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})"><rect x="-11" y="-3.6" width="22" height="7.2" rx="3.6" fill="#f6cfa3" stroke="#c88b55" stroke-width="1.1"/><rect x="-4" y="-3.6" width="8" height="7.2" fill="#e9b47f"/><circle cx="-7.5" cy="-1" r=".7" fill="#c88b55"/><circle cx="-7.5" cy="1.3" r=".7" fill="#c88b55"/><circle cx="7.5" cy="-1" r=".7" fill="#c88b55"/><circle cx="7.5" cy="1.3" r=".7" fill="#c88b55"/></g>`;
   const plasters = bruised ? plaster(80,50,45)+plaster(80,50,-45)+plaster(110,70,-18,.9)+plaster(55,63,24,.85)+plaster(22,48,62,.7) : '';
   const crease = sick ? `<path d="M66 72 q22 5 44 1 M76 77 q16 3 30 0" stroke="${line}" stroke-opacity=".3" stroke-width="1.8" fill="none" stroke-linecap="round"/>` : '';
+  const thermo = ill ? '<g transform="rotate(14 157 73)"><rect x="155" y="71.2" width="23" height="4.4" rx="2.2" fill="#fff" stroke="#7d93a8" stroke-width="1.1"/><rect x="159" y="72.6" width="11" height="1.6" rx=".8" fill="#e5484d"/><circle cx="157" cy="73.4" r="2.8" fill="#e5484d" stroke="#b3262b" stroke-width=".8"/></g>' : '';
+  const gloom = ill ? '<path d="M124 38 v8 M129.5 36.5 v10 M135 36 v9 M140.5 36.5 v7" stroke="#5b46a8" stroke-width="2" stroke-linecap="round" opacity=".75"/><rect x="0" y="0" width="180" height="120" fill="#c3cbe0" opacity=".22"/>' : '';
   const pale = sick ? '<rect x="0" y="0" width="180" height="120" fill="#c9f2cf" opacity=".28"/>' : '';
   const marks = stage>=2 ? `<path d="M64 47 q4 8 1 16 M78 41 q5 9 2 18 M93 37 q5 9 2 18" stroke="${line}" stroke-opacity=".28" stroke-width="3.2" fill="none" stroke-linecap="round"/>`:'';
   const crown = stage>=3 ? `<g transform="translate(6 5) rotate(-10 134 26)"><path d="M122 32 l2 -12 6 6 4 -9 4 9 6 -6 2 12 z" fill="#ffd36b" stroke="#d9951f" stroke-width="1.8" stroke-linejoin="round"/><circle cx="134" cy="28" r="1.8" fill="#ff6f9a"/></g>`:'';
@@ -528,12 +549,12 @@ function sharkSVG(stage,mood,size,ail={}){
     <g clip-path="url(#${id}c)">
       <path d="M20 69 C60 74 98 75 128 68 C148 63 163 62 182 64 L182 120 L20 120 Z" fill="url(#${id}b)"/>
       <ellipse cx="108" cy="40" rx="40" ry="6" fill="#fff" opacity=".22"/>
-      ${marks}${crease}${pale}${bruise}
+      ${marks}${crease}${pale}${gloom}${bruise}
     </g>
     <path d="${body}" fill="none" stroke="${line}" stroke-width="2.4" stroke-linejoin="round"/>
     <path transform="translate(0 ${dy})" d="M116 80 C112 92 103 101 90 106 C97 96 99 88 99 81 Z" fill="url(#${id}g)" stroke="${line}" stroke-width="2.4" stroke-linejoin="round"/>
     <path d="M118 50 q-3 7 0 14 M124 49 q-3 7.5 0 15 M130 49 q-3 7.5 0 15" stroke="${line}" stroke-opacity=".55" stroke-width="2" fill="none" stroke-linecap="round"/>
-    ${plasters}${crown}${eye}${mouth}${cheek}${extra}</svg>`;
+    ${plasters}${crown}${eye}${mouth}${thermo}${cheek}${extra}</svg>`;
 }
 
 /* ===== 게임 UI ===== */
@@ -563,18 +584,26 @@ function render(){
     const el=$('v-'+k); el.textContent=(v<25?'⚠ ':'')+Math.round(v); el.className='val num'+(v<25?' low':''); });
   const mood=(Math.min(sh.satiety,sh.exercise,sh.affection)<20||sh.poop>=3)?'sad':'ok';
   // 상태 이상 라벨: 걸린 종류가 바뀔 때만 다시 그리고(등장 애니메이션), 남은 시간은 매초 갱신
-  const ails=sh.alive?activeAils(sh):{}, ailKey=Object.keys(ails).sort().join(',');
+  const ails=sh.alive?activeAils(sh):{};
+  const look = (sh.alive&&sh.ill) ? {...ails, ill:1} : ails;   // 상어 모습용: 시간제 상태 이상 + 병
+  const ailKey=Object.keys(look).sort().join(',');
   if(ailKey!==lastAilKey){
-    $('ailChips').innerHTML=Object.keys(ails).map(a=>`<span class="chip ail num" data-ail="${a}" title="${CFG.effects[a].name}"><span class="ic">${EFFECT_UI[a].icon}</span>${CFG.effects[a].name} <b></b></span>`).join('');
+    $('ailChips').innerHTML=(look.ill?`<span class="chip ail num" data-ill title="${CFG.illness.name}"><span class="ic">🤒</span>${CFG.illness.name} <b></b></span>`:'')
+      +Object.keys(ails).map(a=>`<span class="chip ail num" data-ail="${a}" title="${CFG.effects[a].name}"><span class="ic">${EFFECT_UI[a].icon}</span>${CFG.effects[a].name} <b></b></span>`).join('');
   }
   $('ailChips').querySelectorAll('[data-ail]').forEach(el=>{ el.querySelector('b').textContent=fmtSec(ails[el.dataset.ail].until-now()); });
+  const illChip=$('ailChips').querySelector('[data-ill]');   // 병은 시간이 아니라 치료 진행도로 표시
+  if(illChip) illChip.querySelector('b').textContent=`${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure}`;
+  if(sh.alive&&sh.ill&&!sh.ill.seen){ sh.ill.seen=true; save(); setTimeout(()=>{ say('똥이 너무 많아서 아파요… 쓰다듬어 주세요'); toast(`${CFG.illness.name}에 걸렸어요! 쓰다듬기 ${CFG.illness.petsToCure}번으로 낫게 해 주세요`); },300); }
   if(st!==lastStage||mood!==lastMood||ailKey!==lastAilKey){
-    $('sharkWrap').innerHTML=sharkSVG(st,mood,Math.round(150+Math.min(st,3)*22),ails);
+    $('sharkWrap').innerHTML=sharkSVG(st,mood,Math.round(150+Math.min(st,3)*22),look);
     $('sharkWrap').classList.toggle('sad',mood==='sad'&&!ailKey); lastStage=st; lastMood=mood; lastAilKey=ailKey;
   }
   document.querySelectorAll('.poop').forEach(p=>p.remove());
   for(let i=0;i<sh.poop;i++){ const p=document.createElement('span'); p.className='poop'; p.textContent='💩'; p.style.left=(18+i*14)+'%'; $('tank').appendChild(p); }
   const al=[];
+  if(sh.ill){ const I=CFG.illness, left=I.petsToCure-sh.ill.prog;
+    al.push(['bad',`${I.name}에 걸렸어요. 쓰다듬기 ${fmtProg(left)}번 더 하면 나아요(똥이 남아 있으면 1번이 0.5번). 아픈 동안엔 애정이 안 오르고, 다 나으면 애정 +${I.cureAffection}!`]); }
   if(sh.starveH>0) al.push(['bad',`배고픔 한계까지 ${Math.max(0,CFG.starveDeathH-sh.starveH).toFixed(1)}시간 남았어요. 지금 먹이를 주세요!`]);
   else if(sh.satiety<25) al.push(['',`배가 많이 고파요. 배부름 ${CFG.noGrowthBelowSatiety} 아래로 떨어지면 성장이 멈춰요.`]);
   if(sh.poop>0) al.push([sh.poop>=3?'bad':'',`똥이 ${sh.poop}개 있어요. 청소 전까지 돌봄 효과가 절반이고, 성장이 ${Math.round(sh.poop*CFG.poopGrowthPenaltyPct)}% 느려져요.`]);
@@ -587,7 +616,7 @@ function render(){
       b.querySelector('.fill').style.width= sh.food<F.max ? (100-fl/(F.regenMin*6e4)*100)+'%' : '0';
       return;
     }
-    b.disabled=left>0||!sh.alive; b.querySelector('.cd').textContent= left>0?fmtCd(left):(k==='clean'&&sh.poop?`${sh.poop}개`:'가능');
+    b.disabled=left>0||!sh.alive; b.querySelector('.cd').textContent= left>0?fmtCd(left):(k==='clean'&&sh.poop?`${sh.poop}개`:(k==='pet'&&sh.ill?`치료 ${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure}`:'가능'));
     b.querySelector('.fill').style.width= left>0?(100-left/cd*100)+'%':'0'; });
   const today=new Date(now()).toDateString(); if(S.ads.day!==today) S.ads={day:today,used:0};
   const foodFull=sh.food>=CFG.food.max;
@@ -622,7 +651,7 @@ function renderRec(){
   const E=CFG.effects;
   $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
     먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 한 번에 가득 채워져요.<br><br>
-    똥은 ${CFG.poopEveryH}시간마다 생기고, 배탈 중에는 ${CFG.poopSickMul}배 빨리 생겨요. 똥이 있으면 먹이·수영·쓰다듬기 효과가 절반이 되니 먼저 청소해 주세요.<br><br>
+    똥은 ${CFG.poopEveryH}시간마다 생기고, 배탈 중에는 ${CFG.poopSickMul}배 빨리 생겨요. 똥이 있으면 먹이·수영·쓰다듬기 효과가 절반이 되니 먼저 청소해 주세요. 똥이 ${CFG.illness.poopAt}개째 쌓이면 ${CFG.illness.name}에 걸려요. 쓰다듬기 ${CFG.illness.petsToCure}번이면 낫는데(똥이 남아 있으면 1번이 0.5번), 아픈 동안은 쓰다듬어도 애정이 오르지 않고 다 나으면 애정이 ${CFG.illness.cureAffection} 올라요.<br><br>
     수영은 처음엔 ${CFG.actions.swim.cdMin}분을 쉬어야 하지만, 수영할 때마다 쉬는 시간이 ${CFG.actions.swim.cdStepMin}분씩 줄어 최소 ${CFG.actions.swim.cdFloorMin}분까지 짧아져요.<br><br>
     가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}에 걸려요. 걸리면 ${CFG.effectDurMin}분 동안 상어 모습이 바뀌고 스탯이 서서히 떨어져요.`;
 }
@@ -650,7 +679,7 @@ function bubbles(){ for(let i=0;i<7;i++){ const b=document.createElement('span')
 /* flows */
 function newShark(name){
   const t=now();
-  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], ail:{}, rankOff:false };
+  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], ail:{}, ill:null, rankOff:false };
   save(); lastStage=-1; lastAilKey=''; render(); say(`안녕! 나는 ${name}이에요`);
 }
 function showStart(again){
